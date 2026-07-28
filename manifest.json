@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Music Float Dock",
+  "version": "1.21.9",
+  "description": "Floating dock for YouTube Music — F11, PiP, HQ playback, and random play.",
+  "short_name": "YTM Float",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "YouTube Music Float Dock"
+  },
+  "permissions": ["storage", "activeTab", "tabs", "windows"],
+  "host_permissions": ["https://music.youtube.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://music.youtube.com/*"],
+      "js": ["extension-utils.js", "listen-history.js", "float-random.js", "content.js"],
+      "css": ["styles/float-random.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["pip-aspect-ratio.js"],
+      "matches": ["https://music.youtube.com/*"]
+    }
+  ]
+}

@@ -1,0 +1,189 @@
+/* Floating dock only — does not modify YouTube Music interface */
+
+.ytm-float-dock {
+  position: fixed;
+  right: 8px;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  z-index: 2147483647;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 26px;
+  padding: 2px 3px 4px;
+  border-radius: 10px;
+  background: rgba(18, 18, 18, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 0, 60, 0.12);
+  backdrop-filter: blur(12px);
+  user-select: none;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.ytm-dock-vdrag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: ns-resize;
+  padding: 0;
+  touch-action: none;
+}
+
+.ytm-dock-vdrag:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.ytm-dock-vdrag svg {
+  width: 10px;
+  height: 10px;
+}
+
+.ytm-dock-window-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+}
+
+.ytm-dock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.ytm-dock-btn svg {
+  width: 11px;
+  height: 11px;
+}
+
+.ytm-dock-btn:hover {
+  transform: scale(1.08);
+}
+
+.ytm-dock-max:hover {
+  background: rgba(76, 175, 80, 0.35);
+}
+
+.ytm-dock-min:hover {
+  background: rgba(255, 193, 7, 0.35);
+}
+
+.ytm-dock-close:hover {
+  background: rgba(244, 67, 54, 0.45);
+}
+
+.ytm-dock-pip {
+  background: rgba(66, 133, 244, 0.25);
+  box-shadow: 0 1px 6px rgba(66, 133, 244, 0.25);
+}
+
+.ytm-dock-pip:hover {
+  background: rgba(66, 133, 244, 0.45);
+}
+
+.ytm-dock-pip.ytm-dock-pip-active {
+  background: rgba(66, 133, 244, 0.55);
+  box-shadow: 0 0 0 1px rgba(138, 180, 248, 0.6);
+}
+
+.ytm-dock-pip.ytm-dock-busy {
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.ytm-dock-random {
+  background: linear-gradient(145deg, #ff003c 0%, #c8002f 100%);
+  box-shadow: 0 2px 8px rgba(255, 0, 60, 0.35);
+}
+
+.ytm-dock-random:hover {
+  background: linear-gradient(145deg, #ff1a52 0%, #e00038 100%);
+}
+
+.ytm-dock-random.ytm-dock-busy {
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.ytm-display-menu {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(14, 14, 14, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  animation: ytm-menu-in 0.14s ease-out;
+  z-index: 2147483647;
+}
+
+@keyframes ytm-menu-in {
+  from {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.ytm-display-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 108px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font: 600 11px "Segoe UI", system-ui, sans-serif;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.ytm-display-menu-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.ytm-display-menu-btn:hover {
+  background: rgba(76, 175, 80, 0.32);
+  transform: translateX(-1px);
+}
+
+.ytm-display-menu-btn[data-display="minimized"]:hover {
+  background: rgba(255, 193, 7, 0.32);
+}

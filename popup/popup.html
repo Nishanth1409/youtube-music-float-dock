@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Music Float Dock</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="header">
+    <img src="../icons/icon48.png" alt="" class="logo" width="32" height="32">
+    <div>
+      <h1 class="title">YouTube Music Float Dock</h1>
+      <p class="subtitle">HQ · PiP · Random · Window controls</p>
+    </div>
+  </header>
+
+  <section class="card toggle-card">
+    <div class="toggle-row">
+      <label for="floatToggle" class="toggle-label">Float dock</label>
+      <label class="switch">
+        <input type="checkbox" id="floatToggle" aria-label="Toggle floating control dock">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="slider-row" style="margin-top: 10px">
+      <label for="dockTopSlider" class="toggle-label">
+        Dock up/down <span id="dockTopValue" class="dock-top-value">15%</span>
+      </label>
+      <input type="range" id="dockTopSlider" min="3" max="92" value="15" step="1" aria-label="Move floating dock up or down">
+    </div>
+    <p class="status-line" style="margin-top: 10px">
+      Float dock: <span id="randomBadge" class="badge badge-enabled">On</span>
+    </p>
+  </section>
+
+  <section class="card toggle-card">
+    <div class="toggle-row">
+      <label for="hqToggle" class="toggle-label">Highest Quality</label>
+      <label class="switch">
+        <input type="checkbox" id="hqToggle" aria-label="Toggle highest quality playback">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <p class="status-line">
+      Status: <span id="statusBadge" class="badge badge-disabled">Disabled</span>
+    </p>
+  </section>
+
+  <section class="card track-card" id="trackCard">
+    <h2 class="section-title">Now Playing</h2>
+    <dl class="track-info">
+      <div class="info-row">
+        <dt>Title</dt>
+        <dd id="trackTitle">—</dd>
+      </div>
+      <div class="info-row">
+        <dt>Artist</dt>
+        <dd id="trackArtist">—</dd>
+      </div>
+      <div class="info-row">
+        <dt>Mode</dt>
+        <dd id="playbackType">—</dd>
+      </div>
+      <div class="info-row">
+        <dt>Video</dt>
+        <dd id="qualityLabel">—</dd>
+      </div>
+      <div class="info-row">
+        <dt>Resolution</dt>
+        <dd id="videoResolution">—</dd>
+      </div>
+    </dl>
+    <p id="trackNote" class="track-note hidden"></p>
+  </section>
+
+  <footer class="footer">
+    <p>Powered by the <strong>Float Dock</strong> — drag it, resize PiP, control the window, play random tracks.</p>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

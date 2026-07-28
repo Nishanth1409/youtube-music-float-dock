@@ -1,0 +1,13 @@
+﻿# Local / OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor
+.vscode/
+.idea/
+
+# Secrets / local only
+*.pem
+.env
+.env.*
