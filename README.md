@@ -4,7 +4,7 @@ Chrome **Manifest V3** extension for [music.youtube.com](https://music.youtube.c
 
 Floating control dock, HQ playback, window modes (F11 / maximize / normal / minimize), Picture-in-Picture with controls, and **random play** from local listen history.
 
-**Version:** 1.21.9  
+**Version:** 1.22.0  
 
 ---
 
