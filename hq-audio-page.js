@@ -2,7 +2,7 @@
  * MAIN-world forced HQ helper for YouTube Music.
  * Strict playback ladder:
  * video 8K → 4K → 2K (1440p) → 1080p, never below 1080p;
- * audio prefers 250–320 kbps and may fall back to 128 kbps, never below 128.
+ * audio 350 kbps → 250 kbps → 128 kbps only, with no network downgrade.
  */
 (function () {
   'use strict';
@@ -11,10 +11,14 @@
   window.__ytmHqAudioInstalled = true;
 
   const AUDIO_HIGH = 'AUDIO_QUALITY_HIGH';
-  const MIN_AUDIO_BPS = 128000;
-  const PREFERRED_AUDIO_MIN_BPS = 250000;
-  const MAX_AUDIO_BPS = 320000;
-  const TARGET_AUDIO_KBPS = 320;
+  // Encoders report small bitrate variations, so each nominal rung has a
+  // narrow acceptance range. Intermediate qualities remain excluded.
+  const AUDIO_TIERS = [
+    { kbps: 350, minBps: 315000, maxBps: 385000 },
+    { kbps: 250, minBps: 225000, maxBps: 275000 },
+    { kbps: 128, minBps: 120000, maxBps: 136000 }
+  ];
+  const TARGET_AUDIO_KBPS = 350;
   const VIDEO_TIERS = [4320, 2160, 1440, 1080];
   const PREFERRED_AUDIO_ITAGS = new Set([774, 141, 251, 140]);
   const LOG_PREFIX = '[YTM Float HQ Force]';
@@ -119,18 +123,34 @@
     return Boolean(fmt && (fmt.width || fmt.height || /video\//i.test(String(fmt.mimeType || ''))));
   }
 
-  function scoreAudioFormat(fmt) {
-    const bps = audioBitrateBps(fmt);
+  function audioFormatTieBreakScore(fmt) {
     const itag = Number(fmt.itag || 0);
-    let score = bps;
-    if (bps >= PREFERRED_AUDIO_MIN_BPS && bps <= MAX_AUDIO_BPS) {
-      score += 5_000_000;
-    }
+    let score = 0;
     if (PREFERRED_AUDIO_ITAGS.has(itag)) score += 100_000 - itag;
     const mime = String(fmt.mimeType || '');
     if (/opus/i.test(mime)) score += 5_000;
     if (/mp4a\.40\.2/i.test(mime)) score += 4_000;
     return score;
+  }
+
+  function selectAudioTier(audioFormats) {
+    for (const tier of AUDIO_TIERS) {
+      const atTier = audioFormats.filter((fmt) => {
+        const bps = audioBitrateBps(fmt);
+        return bps >= tier.minBps && bps <= tier.maxBps;
+      });
+      if (atTier.length === 0) continue;
+
+      const targetBps = tier.kbps * 1000;
+      atTier.sort((a, b) => {
+        const distanceA = Math.abs(audioBitrateBps(a) - targetBps);
+        const distanceB = Math.abs(audioBitrateBps(b) - targetBps);
+        return distanceA - distanceB ||
+          audioFormatTieBreakScore(b) - audioFormatTieBreakScore(a);
+      });
+      return { tier: tier.kbps, format: atTier[0] };
+    }
+    return { tier: 0, format: null };
   }
 
   function scoreVideoFormat(fmt) {
@@ -186,17 +206,13 @@
       const keptVideo = selectedVideo.formats;
       lastForcedVideoHeight = selectedVideo.tier;
 
-      const permittedAudio = audioLike.filter((fmt) => {
-        const bitrate = audioBitrateBps(fmt);
-        return bitrate >= MIN_AUDIO_BPS && bitrate <= MAX_AUDIO_BPS;
-      });
+      const selectedAudio = selectAudioTier(audioLike);
       let keptAudio = [];
-      if (permittedAudio.length > 0) {
-        permittedAudio.sort((a, b) => scoreAudioFormat(b) - scoreAudioFormat(a));
-        // Prefer 250–320 kbps; if unavailable, keep the best stream down to 128 kbps.
-        // Nothing below 128 kbps remains.
-        keptAudio = [permittedAudio[0]];
-        const bestBps = audioBitrateBps(permittedAudio[0]);
+      if (selectedAudio.format) {
+        // Keep one stream from the highest available exact rung. Removing all
+        // lower rungs prevents ABR from reducing audio on a slow connection.
+        keptAudio = [selectedAudio.format];
+        const bestBps = audioBitrateBps(selectedAudio.format);
         lastReportedBitrateKbps = Math.round(bestBps / 1000);
       } else {
         lastReportedBitrateKbps = 0;
@@ -369,7 +385,7 @@
           for (const track of tracks) {
             const label = String(track?.displayName || track?.name || track?.id || '');
             const score =
-              (/320|high|hi-?res|premium|256|opus/i.test(label) ? 100 : 0) +
+              (/350|320|high|hi-?res|premium|250|256|opus/i.test(label) ? 100 : 0) +
               (/original|default/i.test(label) ? 10 : 0);
             if (score > bestScore) {
               bestScore = score;

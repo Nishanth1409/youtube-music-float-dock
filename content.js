@@ -614,7 +614,7 @@
       videoResolution: resolutionLabel(resolution),
       audioKbps: liveAudioKbps || null,
       audioQualityLabel: formatAudioQuality(liveAudioKbps),
-      targetAudioQuality: '250–320 kbps · fallback 128 kbps',
+      targetAudioQuality: '350→250→128 kbps',
       targetQuality: formatQuality(lastTargetQuality || quality),
       forcedVideoHeight: lastForcedVideoHeight || null,
       videoId: getCurrentVideoId(),

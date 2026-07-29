@@ -73,7 +73,7 @@ function updateTrackUI(status) {
     const videoTarget = status.targetQuality && status.targetQuality !== '—'
       ? status.targetQuality
       : '8K→4K→2K→1080p';
-    const audioTarget = status.targetAudioQuality || '250–320 kbps · fallback 128 kbps';
+    const audioTarget = status.targetAudioQuality || '350→250→128 kbps';
     const audioNow = status.audioQualityLabel && status.audioQualityLabel !== '—'
       ? status.audioQualityLabel
       : 'detecting…';
