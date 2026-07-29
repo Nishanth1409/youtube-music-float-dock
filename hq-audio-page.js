@@ -2,7 +2,8 @@
  * MAIN-world forced HQ helper for YouTube Music.
  * Strict playback ladder:
  * video 8K → 4K → 2K (1440p) → 1080p, never below 1080p;
- * audio 350 kbps → 250 kbps → 128 kbps only, with no network downgrade.
+ * audio prefers YouTube's AUDIO_QUALITY_HIGH when offered, else best available;
+ * nominal ladder 350 → 250 → 128 kbps, with no network downgrade.
  */
 (function () {
   'use strict';
@@ -11,16 +12,23 @@
   window.__ytmHqAudioInstalled = true;
 
   const AUDIO_HIGH = 'AUDIO_QUALITY_HIGH';
-  // Encoders report small bitrate variations, so each nominal rung has a
-  // narrow acceptance range. Intermediate qualities remain excluded.
+  // Nominal display ladder. Selection itself prefers YouTube's audioQuality
+  // label (HIGH → MEDIUM → LOW), then bitrate / known high itags.
   const AUDIO_TIERS = [
-    { kbps: 350, minBps: 315000, maxBps: 385000 },
-    { kbps: 250, minBps: 225000, maxBps: 275000 },
-    { kbps: 128, minBps: 120000, maxBps: 136000 }
+    { kbps: 350, minBps: 300000, maxBps: 400000 },
+    { kbps: 250, minBps: 220000, maxBps: 299999 },
+    { kbps: 128, minBps: 110000, maxBps: 170000 }
   ];
   const TARGET_AUDIO_KBPS = 350;
   const VIDEO_TIERS = [4320, 2160, 1440, 1080];
+  // Premium high: 141 (AAC ~256), 774 (Opus ~256). Default web: 140 (~128 AAC), 251 (~128–160 Opus).
   const PREFERRED_AUDIO_ITAGS = new Set([774, 141, 251, 140]);
+  const HIGH_AUDIO_ITAGS = new Set([774, 141, 256, 258]);
+  const AUDIO_QUALITY_RANK = {
+    AUDIO_QUALITY_HIGH: 3,
+    AUDIO_QUALITY_MEDIUM: 2,
+    AUDIO_QUALITY_LOW: 1
+  };
   const LOG_PREFIX = '[YTM Float HQ Force]';
   let enabled = false;
   let applyTimer = null;
@@ -28,6 +36,34 @@
   let lastReportedBitrateKbps = 0;
   let lastForcedVideoHeight = 0;
   let lastStatusVideoId = '';
+  // The first /player request can beat the settings lookup on a fresh window.
+  let enabledStateKnown = false;
+  const enabledStateWaiters = [];
+  const ENABLED_STATE_WAIT_MS = 1200;
+
+  function markEnabledStateKnown() {
+    if (enabledStateKnown) return;
+    enabledStateKnown = true;
+    while (enabledStateWaiters.length) {
+      enabledStateWaiters.shift()();
+    }
+  }
+
+  function waitForEnabledState() {
+    if (enabledStateKnown) return Promise.resolve();
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer = null;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve();
+      };
+      timer = setTimeout(finish, ENABLED_STATE_WAIT_MS);
+      enabledStateWaiters.push(finish);
+    });
+  }
 
   function log(...args) {
     if (typeof console !== 'undefined' && console.debug) {
@@ -126,7 +162,8 @@
 
   function audioFormatTieBreakScore(fmt) {
     const itag = Number(fmt.itag || 0);
-    let score = 0;
+    let score = audioBitrateBps(fmt);
+    if (HIGH_AUDIO_ITAGS.has(itag)) score += 2_000_000;
     if (PREFERRED_AUDIO_ITAGS.has(itag)) score += 100_000 - itag;
     const mime = String(fmt.mimeType || '');
     if (/opus/i.test(mime)) score += 5_000;
@@ -134,24 +171,49 @@
     return score;
   }
 
-  function selectAudioTier(audioFormats) {
-    for (const tier of AUDIO_TIERS) {
-      const atTier = audioFormats.filter((fmt) => {
-        const bps = audioBitrateBps(fmt);
-        return bps >= tier.minBps && bps <= tier.maxBps;
-      });
-      if (atTier.length === 0) continue;
+  /** YouTube's own audio rung — same idea as qualityLabel for video. */
+  function audioQualityRank(fmt) {
+    const label = String(fmt.audioQuality || '').toUpperCase();
+    if (AUDIO_QUALITY_RANK[label]) return AUDIO_QUALITY_RANK[label];
+    const itag = Number(fmt.itag || 0);
+    if (HIGH_AUDIO_ITAGS.has(itag)) return AUDIO_QUALITY_RANK.AUDIO_QUALITY_HIGH;
+    const bps = audioBitrateBps(fmt);
+    if (bps >= 220000) return AUDIO_QUALITY_RANK.AUDIO_QUALITY_HIGH;
+    if (bps >= 110000) return AUDIO_QUALITY_RANK.AUDIO_QUALITY_MEDIUM;
+    if (bps > 0) return AUDIO_QUALITY_RANK.AUDIO_QUALITY_LOW;
+    return 0;
+  }
 
-      const targetBps = tier.kbps * 1000;
-      atTier.sort((a, b) => {
-        const distanceA = Math.abs(audioBitrateBps(a) - targetBps);
-        const distanceB = Math.abs(audioBitrateBps(b) - targetBps);
-        return distanceA - distanceB ||
-          audioFormatTieBreakScore(b) - audioFormatTieBreakScore(a);
-      });
-      return { tier: tier.kbps, format: atTier[0] };
+  function nominalAudioKbps(fmt) {
+    const bps = audioBitrateBps(fmt);
+    if (bps > 0) {
+      for (const tier of AUDIO_TIERS) {
+        if (bps >= tier.minBps && bps <= tier.maxBps) return tier.kbps;
+      }
+      return Math.round(bps / 1000);
     }
-    return { tier: 0, format: null };
+    const itag = Number(fmt.itag || 0);
+    if (HIGH_AUDIO_ITAGS.has(itag)) return 250;
+    if (itag === 140 || itag === 251) return 128;
+    return 0;
+  }
+
+  function selectAudioTier(audioFormats) {
+    if (!audioFormats.length) return { tier: 0, format: null };
+
+    // Label-first, like video: keep only the highest audioQuality YouTube offers.
+    let bestRank = 0;
+    for (const fmt of audioFormats) {
+      bestRank = Math.max(bestRank, audioQualityRank(fmt));
+    }
+    const atBest =
+      bestRank > 0
+        ? audioFormats.filter((fmt) => audioQualityRank(fmt) === bestRank)
+        : audioFormats.slice();
+
+    atBest.sort((a, b) => audioFormatTieBreakScore(b) - audioFormatTieBreakScore(a));
+    const format = atBest[0];
+    return { tier: nominalAudioKbps(format), format };
   }
 
   function scoreVideoFormat(fmt) {
@@ -163,9 +225,35 @@
     return h * 1_000_000 + w * 100 + br + fps * 10;
   }
 
+  /**
+   * YouTube's ladder rung for a format. Pixel height alone is wrong for
+   * anything that is not 16:9 — an ultrawide 4K stream is 3840x1608, and a
+   * vertical one is taller than its rung. qualityLabel is YouTube's own rung.
+   */
+  function formatLadderHeight(fmt) {
+    const label = String(fmt.qualityLabel || '').match(/^(\d{3,5})p/i);
+    if (label) return Number(label[1]);
+
+    const quality = String(fmt.quality || '').match(/^hd(\d{3,5})$/i);
+    if (quality) return Number(quality[1]);
+
+    const width = Number(fmt.width || 0);
+    const height = Number(fmt.height || 0);
+    // Short side approximates the rung for both ultrawide and vertical video.
+    if (width && height) return Math.min(width, height);
+    return height;
+  }
+
+  /** Nearest supported rung, tolerating encodes like 1088p that mean 1080p. */
+  function formatTier(fmt) {
+    const ladderHeight = formatLadderHeight(fmt);
+    if (!ladderHeight) return 0;
+    return VIDEO_TIERS.find((tier) => ladderHeight >= tier * 0.95) || 0;
+  }
+
   function selectVideoTier(videoFormats) {
     for (const tier of VIDEO_TIERS) {
-      const atTier = videoFormats.filter((fmt) => Number(fmt.height || 0) === tier);
+      const atTier = videoFormats.filter((fmt) => formatTier(fmt) === tier);
       if (atTier.length > 0) {
         atTier.sort((a, b) => scoreVideoFormat(b) - scoreVideoFormat(a));
         return { tier, formats: atTier };
@@ -178,14 +266,16 @@
     if (!streaming || typeof streaming !== 'object') return;
     if (videoId) lastStatusVideoId = videoId;
 
+    let adaptiveLocked = false;
+
     const forceList = (listName) => {
       const list = streaming[listName];
       if (!Array.isArray(list) || list.length === 0) return;
 
-      // Progressive formats contain inseparable audio/video and can let the
-      // player bypass the exact adaptive quality rung selected below.
+      // Progressive formats are muxed and let the player sidestep the adaptive
+      // rung, but dropping them is only safe once adaptive selection worked.
       if (listName === 'formats') {
-        streaming[listName] = [];
+        if (adaptiveLocked) streaming[listName] = [];
         return;
       }
 
@@ -199,30 +289,31 @@
         else other.push(fmt);
       }
 
-      const selectedVideo = selectVideoTier(
-        videoLike.filter((fmt) => {
-          const height = Number(fmt.height || 0);
-          return VIDEO_TIERS.includes(height);
-        })
-      );
-      const keptVideo = selectedVideo.formats;
+      const selectedVideo = selectVideoTier(videoLike);
       lastForcedVideoHeight = selectedVideo.tier;
+      // Falling back to the untouched list keeps playback alive when a track
+      // offers nothing at a supported rung.
+      const keptVideo = selectedVideo.formats.length > 0 ? selectedVideo.formats : videoLike;
 
       const selectedAudio = selectAudioTier(audioLike);
       let keptAudio = [];
       if (selectedAudio.format) {
-        // Keep one stream from the highest available exact rung. Removing all
-        // lower rungs prevents ABR from reducing audio on a slow connection.
+        // Keep only the highest audioQuality YouTube offered. Removing lower
+        // rungs prevents ABR from dropping to the default ~128 kbps stream.
         keptAudio = [selectedAudio.format];
         const bestBps = audioBitrateBps(selectedAudio.format);
-        lastReportedBitrateKbps = Math.round(bestBps / 1000);
+        lastReportedBitrateKbps =
+          bestBps > 0 ? Math.round(bestBps / 1000) : selectedAudio.tier;
       } else {
+        keptAudio = audioLike;
         lastReportedBitrateKbps = 0;
       }
 
+      adaptiveLocked = selectedVideo.formats.length > 0 && Boolean(selectedAudio.format);
+
       streaming[listName] = keptVideo.concat(keptAudio);
       log(
-        `Strict ${listName}: video=${keptVideo.length}@${lastForcedVideoHeight || 'blocked'}p audio=${keptAudio.length}` +
+        `Strict ${listName}: video=${keptVideo.length}@${lastForcedVideoHeight || 'unchanged'}p audio=${keptAudio.length}` +
           (lastReportedBitrateKbps ? `~${lastReportedBitrateKbps}kbps` : '')
       );
 
@@ -299,11 +390,16 @@
       window.fetch = async function ytmHqFetch(input, init) {
         const response = await originalFetch.apply(this, arguments);
         try {
-          if (!enabled) return response;
           const url = typeof input === 'string' ? input : input && input.url;
           if (!url || (url.indexOf('/player') === -1 && url.indexOf('/youtubei/') === -1)) {
             return response;
           }
+          // Hold only the first /player long enough to learn the setting,
+          // otherwise the opening song is never forced or reported.
+          if (!enabledStateKnown && url.indexOf('/player') !== -1) {
+            await waitForEnabledState();
+          }
+          if (!enabled) return response;
           const clone = response.clone();
           const text = await clone.text();
           const patched = patchPlayerJsonPayload(text);
@@ -461,6 +557,7 @@
 
   function setEnabled(next) {
     enabled = Boolean(next);
+    markEnabledStateKnown();
     if (enabled) {
       spoofFastConnection();
       installNetworkHooks();
