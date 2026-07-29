@@ -2,7 +2,8 @@
  * YouTube Music Float Dock — content script
  *
  * Operates exclusively on https://music.youtube.com/*
- * Shows audio and video normally; requests the highest playback quality available.
+ * Shows audio and video normally; FORCES the highest video and audio quality
+ * available even when the network is slow (no adaptive downgrade).
  */
 
 (function () {
@@ -34,7 +35,10 @@
   const LEGACY_STORAGE_KEY = 'audioOnlyEnabled';
   const LOG_PREFIX = '[YTM Float]';
 
+  // Preference order is a fallback only — getBestAvailableQuality ranks by real height.
   const QUALITY_PREFERENCE = [
+    'hd8640',
+    'hd4320',
     'highres',
     'hd2160',
     'hd1440',
@@ -47,6 +51,8 @@
   ];
 
   const QUALITY_LABELS = {
+    hd8640: '12K',
+    hd4320: '8K',
     highres: '4K+',
     hd2160: '2160p',
     hd1440: '1440p',
@@ -60,6 +66,8 @@
   };
 
   const QUALITY_TO_HEIGHT = {
+    hd8640: 8640,
+    hd4320: 4320,
     highres: 2160,
     hd2160: 2160,
     hd1440: 1440,
@@ -78,11 +86,13 @@
     qualityMenuItem: '.ytp-quality-menu .ytp-menuitem'
   };
 
-  const DEBOUNCE_MS = 400;
-  const PLAYER_READY_DELAY_MS = 1200;
-  const QUALITY_RETRY_STEPS = [1000, 2500, 5000, 10000];
+  const DEBOUNCE_MS = 250;
+  const PLAYER_READY_DELAY_MS = 800;
+  const QUALITY_RETRY_STEPS = [500, 1200, 2500, 5000, 10000, 20000];
   const OBSERVER_THROTTLE_MS = 600;
-  const UI_QUALITY_COOLDOWN_MS = 8000;
+  const UI_QUALITY_COOLDOWN_MS = 4000;
+  /** Keep re-forcing max quality so ABR cannot stick on a lower rung. */
+  const FORCE_QUALITY_LOCK_MS = 2500;
 
   let enabled = false;
   let debounceTimer = null;
@@ -98,6 +108,7 @@
   let lastReportedAt = 0;
   const STATUS_PUSH_MIN_MS = 2000;
   let bindPlayerIntervalId = null;
+  let forceQualityLockId = null;
 
   const ext = () => window.YtmExtension;
 
@@ -208,14 +219,25 @@
 
   function parseQualityHeight(label) {
     if (!label) return 0;
-    const match = String(label).match(/(\d{3,4})\s*p/i);
-    return match ? parseInt(match[1], 10) : 0;
+    const text = String(label).trim();
+    // "11520p", "8640p", "4320p", "2160p", …
+    const pMatch = text.match(/(\d{3,5})\s*p\b/i);
+    if (pMatch) return parseInt(pMatch[1], 10);
+    // API codes: hd8640 / hd4320 / hd2160 / …
+    const hdMatch = text.match(/^hd(\d{3,5})$/i);
+    if (hdMatch) return parseInt(hdMatch[1], 10);
+    // Bare height numbers sometimes returned by quality APIs
+    if (/^\d{3,5}$/.test(text)) return parseInt(text, 10);
+    return 0;
   }
 
   function qualityRank(level) {
     if (!level) return -1;
-    if (QUALITY_TO_HEIGHT[level]) return QUALITY_TO_HEIGHT[level];
-    return parseQualityHeight(level);
+    const key = String(level).trim();
+    if (Object.prototype.hasOwnProperty.call(QUALITY_TO_HEIGHT, key)) {
+      return QUALITY_TO_HEIGHT[key];
+    }
+    return parseQualityHeight(key);
   }
 
   function installStorageQualityGuard() {
@@ -242,22 +264,22 @@
 
     try {
       const now = Date.now();
-      const payload = JSON.stringify({
-        data: qualityLevel,
-        creation: now,
-        expiration: now + 31536000000
-      });
-      localStorage.setItem(STORAGE_QUALITY_KEY, payload);
-
-      const numeric = QUALITY_TO_HEIGHT[qualityLevel];
-      if (numeric) {
+      const numeric = qualityRank(qualityLevel);
+      // Prefer numeric height so YouTube does not clamp to an older 4K/1080 default.
+      if (numeric > 0) {
         localStorage.setItem(STORAGE_QUALITY_KEY, JSON.stringify({
           data: JSON.stringify({ quality: numeric, previousQuality: numeric }),
           creation: now,
           expiration: now + 31536000000
         }));
+      } else {
+        localStorage.setItem(STORAGE_QUALITY_KEY, JSON.stringify({
+          data: qualityLevel,
+          creation: now,
+          expiration: now + 31536000000
+        }));
       }
-      log('Stored video quality preference:', qualityLevel);
+      log('Stored video quality preference:', qualityLevel, numeric > 0 ? `(${numeric}p)` : '');
     } catch (err) {
       logWarn('Could not persist quality preference:', err.message);
     }
@@ -283,12 +305,33 @@
     if (!player) return null;
 
     try {
+      let available = [];
       if (typeof player.getAvailableQualityLevels === 'function') {
-        const available = player.getAvailableQualityLevels() || [];
-        if (available.length > 0) {
-          const best = QUALITY_PREFERENCE.find((q) => available.includes(q));
-          if (best) return best;
+        available = (player.getAvailableQualityLevels() || []).filter(Boolean);
+      }
+
+      // Also consider human-readable labels when the player exposes them.
+      if (typeof player.getAvailableQualityLabels === 'function') {
+        const labels = (player.getAvailableQualityLabels() || []).filter(Boolean);
+        for (const label of labels) {
+          if (!available.includes(label)) available.push(label);
         }
+      }
+
+      const candidates = available.filter((q) => {
+        const key = String(q).trim().toLowerCase();
+        return key && key !== 'auto' && key !== 'unknown';
+      });
+
+      if (candidates.length > 0) {
+        // Always pick the true highest by resolution rank (supports 12K / 8K / 4K / …).
+        candidates.sort((a, b) => qualityRank(b) - qualityRank(a));
+        if (qualityRank(candidates[0]) > 0) return candidates[0];
+
+        // Fallback: known preference order when ranks are unknown.
+        const preferred = QUALITY_PREFERENCE.find((q) => candidates.includes(q));
+        if (preferred) return preferred;
+        return candidates[0];
       }
 
       if (typeof player.getMaxPlaybackQuality === 'function') {
@@ -329,26 +372,39 @@
     try {
       persistQualityPreference(targetQuality);
 
+      // Lock BOTH ends of the range to max so ABR cannot pick a lower quality
+      // when bandwidth drops.
       if (typeof player.setPlaybackQualityRange === 'function') {
         player.setPlaybackQualityRange(targetQuality, targetQuality);
         applied = true;
       }
 
-      const current = getCurrentQuality(player);
-      if (typeof player.setPlaybackQuality === 'function' && current !== targetQuality) {
-        player.setPlaybackQuality(targetQuality);
-        applied = true;
-        log('Player API quality:', current, '→', targetQuality);
+      if (typeof player.setPlaybackQuality === 'function') {
+        const current = getCurrentQuality(player);
+        if (current !== targetQuality) {
+          player.setPlaybackQuality(targetQuality);
+          applied = true;
+          log('Forced player quality:', current, '→', targetQuality);
+        } else {
+          // Re-assert even when already matching (ABR may flip back).
+          player.setPlaybackQuality(targetQuality);
+          applied = true;
+        }
       }
 
       if (typeof player.getMaxPlaybackQuality === 'function' && typeof player.setPlaybackQuality === 'function') {
         const maxQ = player.getMaxPlaybackQuality();
-        if (maxQ && maxQ !== 'unknown' && maxQ !== getCurrentQuality(player)) {
-          player.setPlaybackQuality(maxQ);
-          persistQualityPreference(maxQ);
-          targetQuality = maxQ;
-          applied = true;
-          log('Applied max player quality:', maxQ);
+        if (maxQ && maxQ !== 'unknown') {
+          if (typeof player.setPlaybackQualityRange === 'function') {
+            player.setPlaybackQualityRange(maxQ, maxQ);
+          }
+          if (maxQ !== getCurrentQuality(player)) {
+            player.setPlaybackQuality(maxQ);
+            persistQualityPreference(maxQ);
+            targetQuality = maxQ;
+            applied = true;
+            log('Forced max player quality:', maxQ);
+          }
         }
       }
     } catch (err) {
@@ -367,9 +423,11 @@
     let bestHeight = -1;
 
     for (const item of items) {
-      const label = item.innerText || item.textContent || '';
+      const label = (item.innerText || item.textContent || '').trim();
       if (/^\s*auto\s*$/i.test(label)) continue;
-      const height = parseQualityHeight(label);
+      // Prefer explicit resolution; treat "Premium" / "High" as lower priority than real heights.
+      let height = parseQualityHeight(label);
+      if (!height) height = qualityRank(label);
       if (height > bestHeight) {
         bestHeight = height;
         bestItem = item;
@@ -382,7 +440,7 @@
 
     const label = (bestItem.innerText || bestItem.textContent || '').trim();
     bestItem.click();
-    log('Selected video quality from menu:', label);
+    log('Selected video quality from menu:', label, bestHeight > 0 ? `(${bestHeight}p)` : '');
     return label;
   }
 
@@ -432,20 +490,47 @@
     return resolution.height < targetHeight - 40;
   }
 
+  function notifyPageHqAudio(enabledFlag, applyOnly) {
+    try {
+      window.postMessage(
+        {
+          source: 'ytm-float-dock',
+          type: applyOnly ? 'HQ_AUDIO_APPLY' : 'HQ_AUDIO_SET',
+          enabled: Boolean(enabledFlag)
+        },
+        '*'
+      );
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function maximizeAudioQuality() {
+    // Page-world helper sets ytcfg AUDIO_QUALITY_HIGH and prefers highest
+    // audio bitrate already present in /player adaptiveFormats.
+    notifyPageHqAudio(true, true);
+    return true;
+  }
+
   function maximizePlaybackQuality() {
     const player = getMoviePlayer();
     if (!player) {
+      maximizeAudioQuality();
       return { current: null, target: null, applied: false, resolution: getVideoResolution() };
     }
 
     const target = getBestAvailableQuality(player);
     let applied = false;
 
+    // Audio + video: always force highest, independent of network speed.
+    maximizeAudioQuality();
+
     if (target) {
       applied = applyPlayerQuality(player, target);
 
       const current = getCurrentQuality(player);
       if (current !== target && needsHigherVideoQuality(target)) {
+        // One reload helps the locked range stick after ABR already started low.
         reloadPlayerAtCurrentTime(player);
         applied = true;
       }
@@ -466,6 +551,34 @@
       resolution,
       videoQualityLabel: resolution ? `${resolution.height}p` : formatQuality(current)
     };
+  }
+
+  function startForceQualityLock() {
+    if (forceQualityLockId) return;
+    forceQualityLockId = setInterval(() => {
+      if (!enabled || !ext()?.isContextValid()) return;
+      const player = getMoviePlayer();
+      if (!player || !isPlayerReady()) return;
+      const target = getBestAvailableQuality(player) || lastTargetQuality;
+      if (!target) {
+        maximizeAudioQuality();
+        return;
+      }
+      if (needsHigherVideoQuality(target) || getCurrentQuality(player) !== target) {
+        applyPlayerQuality(player, target);
+        maximizeAudioQuality();
+      } else {
+        // Re-assert range lock even when currently matching.
+        applyPlayerQuality(player, target);
+      }
+    }, FORCE_QUALITY_LOCK_MS);
+  }
+
+  function stopForceQualityLock() {
+    if (forceQualityLockId) {
+      clearInterval(forceQualityLockId);
+      forceQualityLockId = null;
+    }
   }
 
   function buildStatus() {
@@ -834,7 +947,10 @@
 
     if (typeof player.addEventListener === 'function') {
       player.addEventListener('onPlaybackQualityChange', () => {
-        if (enabled) scheduleQualityCheck();
+        if (!enabled) return;
+        // Immediate re-force when YouTube tries to drop quality on slow bandwidth.
+        maximizePlaybackQuality();
+        scheduleQualityCheck(300);
       });
     }
   }
@@ -847,10 +963,14 @@
 
     if (message.type === 'SET_ENABLED') {
       enabled = Boolean(message.enabled);
+      notifyPageHqAudio(enabled, false);
+      if (enabled) startForceQualityLock();
+      else stopForceQualityLock();
       ext()?.storageSet({ [STORAGE_KEY]: enabled }, () => {
         if (enabled) {
           lastSeenVideoId = '';
           scheduleQualityCheck(PLAYER_READY_DELAY_MS);
+          scheduleQualityRetries();
         }
         reportStatus();
         sendResponse({ ok: true, enabled });
@@ -903,20 +1023,29 @@
     window.addEventListener('pagehide', pauseOnLeave);
 
     loadEnabledState(() => {
+      notifyPageHqAudio(enabled, false);
+      if (enabled) startForceQualityLock();
+      else stopForceQualityLock();
       attachObservers();
       watchVideoElement();
       bindPlayerQualityEvents();
       scheduleQualityCheck(PLAYER_READY_DELAY_MS);
+      if (enabled) scheduleQualityRetries();
       reportStatus();
-      log('Initialized, high quality mode:', enabled ? 'enabled' : 'disabled');
+      log('Initialized, forced highest quality mode:', enabled ? 'enabled' : 'disabled');
     });
 
     ext().onStorageChanged((changes, area) => {
       if (area !== 'local' || !changes[STORAGE_KEY]) return;
       enabled = changes[STORAGE_KEY].newValue !== false;
+      notifyPageHqAudio(enabled, false);
       if (enabled) {
+        startForceQualityLock();
         lastSeenVideoId = '';
         scheduleQualityCheck(PLAYER_READY_DELAY_MS);
+        scheduleQualityRetries();
+      } else {
+        stopForceQualityLock();
       }
       reportStatus();
     });
@@ -932,6 +1061,7 @@
     ext().onInvalidated(() => {
       if (bindPlayerIntervalId) clearInterval(bindPlayerIntervalId);
       bindPlayerIntervalId = null;
+      stopForceQualityLock();
       clearQualityRetries();
       clearTimeout(debounceTimer);
       clearTimeout(observerThrottleTimer);
