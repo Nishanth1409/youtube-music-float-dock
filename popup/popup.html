@@ -23,13 +23,13 @@
         <span class="slider"></span>
       </label>
     </div>
-    <div class="slider-row" style="margin-top: 10px">
+    <div class="slider-row">
       <label for="dockTopSlider" class="toggle-label">
         Dock up/down <span id="dockTopValue" class="dock-top-value">15%</span>
       </label>
       <input type="range" id="dockTopSlider" min="3" max="92" value="15" step="1" aria-label="Move floating dock up or down">
     </div>
-    <p class="status-line" style="margin-top: 10px">
+    <p class="status-line">
       Float dock: <span id="randomBadge" class="badge badge-enabled">On</span>
     </p>
   </section>
@@ -69,6 +69,10 @@
       <div class="info-row">
         <dt>Resolution</dt>
         <dd id="videoResolution">—</dd>
+      </div>
+      <div class="info-row">
+        <dt>Audio</dt>
+        <dd id="audioQualityLabel">—</dd>
       </div>
     </dl>
     <p id="trackNote" class="track-note hidden"></p>

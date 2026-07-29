@@ -16,6 +16,7 @@ const trackArtist = document.getElementById('trackArtist');
 const playbackType = document.getElementById('playbackType');
 const qualityLabel = document.getElementById('qualityLabel');
 const videoResolution = document.getElementById('videoResolution');
+const audioQualityLabel = document.getElementById('audioQualityLabel');
 const trackNote = document.getElementById('trackNote');
 
 function setBadge(enabled) {
@@ -47,6 +48,7 @@ function showOffPageMessage() {
   setPlaybackDisplay('—');
   qualityLabel.textContent = '—';
   videoResolution.textContent = '—';
+  audioQualityLabel.textContent = '—';
   trackNote.textContent = 'Open music.youtube.com and play a track to see details here.';
   trackNote.classList.remove('hidden');
 }
@@ -62,15 +64,20 @@ function updateTrackUI(status) {
   setPlaybackDisplay(status.playbackType);
   qualityLabel.textContent = status.qualityLabel || status.quality || '—';
   videoResolution.textContent = status.videoResolution || '—';
+  audioQualityLabel.textContent = status.audioQualityLabel || '—';
 
   trackNote.classList.add('hidden');
   trackNote.textContent = '';
 
   if (status.enabled) {
-    const target = status.targetQuality && status.targetQuality !== '—'
+    const videoTarget = status.targetQuality && status.targetQuality !== '—'
       ? status.targetQuality
-      : 'highest available';
-    trackNote.textContent = `Audio and video at ${target}. Tap Random on the dock for a pick from your listens.`;
+      : '8K→4K→2K→1080p';
+    const audioTarget = status.targetAudioQuality || '250–320 kbps · fallback 128 kbps';
+    const audioNow = status.audioQualityLabel && status.audioQualityLabel !== '—'
+      ? status.audioQualityLabel
+      : 'detecting…';
+    trackNote.textContent = `Video target ${videoTarget}. Audio now ${audioNow} (target ${audioTarget}).`;
     trackNote.classList.remove('hidden');
   }
 }

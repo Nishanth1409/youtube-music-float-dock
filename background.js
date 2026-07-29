@@ -316,11 +316,11 @@ async function handleWindowControl(action, sender, options = {}) {
 
   try {
     if (action === 'enter-fullscreen') {
-      return enterWindowFullscreen(windowId);
+      return await enterWindowFullscreen(windowId);
     }
 
     if (action === 'toggle-fullscreen') {
-      return toggleWindowFullscreen(windowId);
+      return await toggleWindowFullscreen(windowId);
     }
 
     if (action === 'set-display') {
@@ -328,14 +328,14 @@ async function handleWindowControl(action, sender, options = {}) {
       if (!DISPLAY_CYCLE.includes(display)) {
         return { ok: false, reason: 'invalid_display' };
       }
-      return setWindowDisplay(windowId, tabId, display);
+      return await setWindowDisplay(windowId, tabId, display);
     }
 
     if (action === 'cycle-display') {
       let step = displayCycleStep.get(windowId);
       if (step === undefined) step = -1;
       step = (step + 1) % DISPLAY_CYCLE.length;
-      return setWindowDisplay(windowId, tabId, DISPLAY_CYCLE[step]);
+      return await setWindowDisplay(windowId, tabId, DISPLAY_CYCLE[step]);
     }
 
     if (action === 'fullscreen' || action === 'maximize') {
@@ -343,11 +343,11 @@ async function handleWindowControl(action, sender, options = {}) {
     }
 
     if (action === 'save-pip-state') {
-      return savePipWindowState(windowId);
+      return await savePipWindowState(windowId);
     }
 
     if (action === 'restore-from-pip') {
-      return restoreFromPip(windowId, tabId);
+      return await restoreFromPip(windowId, tabId);
     }
 
     if (action === 'minimize') {
@@ -440,7 +440,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'WINDOW_CONTROL') {
-    handleWindowControl(message.action, sender, message).then(sendResponse);
+    handleWindowControl(message.action, sender, message)
+      .then((result) => sendResponse(result || { ok: false, reason: 'no_result' }))
+      .catch((err) =>
+        sendResponse({ ok: false, reason: err?.message || 'window_control_failed' })
+      );
     return true;
   }
 

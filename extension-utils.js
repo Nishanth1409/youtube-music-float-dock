@@ -213,7 +213,15 @@
 
   function sendMessage(message, callback, attempt) {
     const tryCount = attempt || 0;
-    if (!isContextValid()) return;
+    // Callers await this callback, so it must always run — even on failure.
+    const done = (response) => {
+      if (typeof callback === 'function') callback(response);
+    };
+
+    if (!isContextValid()) {
+      done(undefined);
+      return;
+    }
 
     try {
       chrome.runtime.sendMessage(message, (response) => {
@@ -222,17 +230,19 @@
           setTimeout(() => sendMessage(message, callback, tryCount + 1), 120 * (tryCount + 1));
           return;
         }
-        if (typeof callback === 'function') callback(response);
+        done(response);
       });
     } catch (err) {
       if (isContextInvalidationError(err?.message)) {
         markInvalidated();
+        done(undefined);
         return;
       }
       if (tryCount < 3) {
         setTimeout(() => sendMessage(message, callback, tryCount + 1), 120 * (tryCount + 1));
         return;
       }
+      done(undefined);
     }
   }
 

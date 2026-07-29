@@ -1,7 +1,8 @@
 /**
  * MAIN-world forced HQ helper for YouTube Music.
- * Always prefers the highest video resolution + highest audio bitrate already offered.
- * Strips lower ladder rungs so ABR cannot downgrade on slow networks.
+ * Strict playback ladder:
+ * video 8K → 4K → 2K (1440p) → 1080p, never below 1080p;
+ * audio prefers 250–320 kbps and may fall back to 128 kbps, never below 128.
  */
 (function () {
   'use strict';
@@ -10,8 +11,11 @@
   window.__ytmHqAudioInstalled = true;
 
   const AUDIO_HIGH = 'AUDIO_QUALITY_HIGH';
+  const MIN_AUDIO_BPS = 128000;
+  const PREFERRED_AUDIO_MIN_BPS = 250000;
+  const MAX_AUDIO_BPS = 320000;
   const TARGET_AUDIO_KBPS = 320;
-  const TARGET_AUDIO_BPS = TARGET_AUDIO_KBPS * 1000;
+  const VIDEO_TIERS = [4320, 2160, 1440, 1080];
   const PREFERRED_AUDIO_ITAGS = new Set([774, 141, 251, 140]);
   const LOG_PREFIX = '[YTM Float HQ Force]';
   let enabled = false;
@@ -119,8 +123,9 @@
     const bps = audioBitrateBps(fmt);
     const itag = Number(fmt.itag || 0);
     let score = bps;
-    if (bps >= TARGET_AUDIO_BPS) score += 5_000_000;
-    else if (bps >= 250_000) score += 2_500_000;
+    if (bps >= PREFERRED_AUDIO_MIN_BPS && bps <= MAX_AUDIO_BPS) {
+      score += 5_000_000;
+    }
     if (PREFERRED_AUDIO_ITAGS.has(itag)) score += 100_000 - itag;
     const mime = String(fmt.mimeType || '');
     if (/opus/i.test(mime)) score += 5_000;
@@ -137,12 +142,30 @@
     return h * 1_000_000 + w * 100 + br + fps * 10;
   }
 
+  function selectVideoTier(videoFormats) {
+    for (const tier of VIDEO_TIERS) {
+      const atTier = videoFormats.filter((fmt) => Number(fmt.height || 0) === tier);
+      if (atTier.length > 0) {
+        atTier.sort((a, b) => scoreVideoFormat(b) - scoreVideoFormat(a));
+        return { tier, formats: atTier };
+      }
+    }
+    return { tier: 0, formats: [] };
+  }
+
   function forceHighestFormats(streaming) {
     if (!streaming || typeof streaming !== 'object') return;
 
     const forceList = (listName) => {
       const list = streaming[listName];
       if (!Array.isArray(list) || list.length === 0) return;
+
+      // Progressive formats contain inseparable audio/video and can let the
+      // player bypass the exact adaptive quality rung selected below.
+      if (listName === 'formats') {
+        streaming[listName] = [];
+        return;
+      }
 
       const videoLike = [];
       const audioLike = [];
@@ -154,31 +177,51 @@
         else other.push(fmt);
       }
 
-      let keptVideo = videoLike;
-      if (videoLike.length > 0) {
-        videoLike.sort((a, b) => scoreVideoFormat(b) - scoreVideoFormat(a));
-        const bestHeight = Number(videoLike[0].height || 0);
-        // Keep only the top resolution ladder (all codecs at that height).
-        keptVideo = videoLike.filter((f) => Number(f.height || 0) >= bestHeight);
-        // Prefer highest bitrate within that height — keep top few codecs, drop soft encodes.
-        keptVideo.sort((a, b) => scoreVideoFormat(b) - scoreVideoFormat(a));
-        lastForcedVideoHeight = bestHeight;
-      }
+      const selectedVideo = selectVideoTier(
+        videoLike.filter((fmt) => {
+          const height = Number(fmt.height || 0);
+          return VIDEO_TIERS.includes(height);
+        })
+      );
+      const keptVideo = selectedVideo.formats;
+      lastForcedVideoHeight = selectedVideo.tier;
 
-      let keptAudio = audioLike;
-      if (audioLike.length > 0) {
-        audioLike.sort((a, b) => scoreAudioFormat(b) - scoreAudioFormat(a));
-        // Keep only the single best audio stream so ABR cannot fall to 128/48.
-        keptAudio = [audioLike[0]];
-        const bestBps = audioBitrateBps(audioLike[0]);
+      const permittedAudio = audioLike.filter((fmt) => {
+        const bitrate = audioBitrateBps(fmt);
+        return bitrate >= MIN_AUDIO_BPS && bitrate <= MAX_AUDIO_BPS;
+      });
+      let keptAudio = [];
+      if (permittedAudio.length > 0) {
+        permittedAudio.sort((a, b) => scoreAudioFormat(b) - scoreAudioFormat(a));
+        // Prefer 250–320 kbps; if unavailable, keep the best stream down to 128 kbps.
+        // Nothing below 128 kbps remains.
+        keptAudio = [permittedAudio[0]];
+        const bestBps = audioBitrateBps(permittedAudio[0]);
         lastReportedBitrateKbps = Math.round(bestBps / 1000);
+      } else {
+        lastReportedBitrateKbps = 0;
       }
 
-      streaming[listName] = keptVideo.concat(keptAudio).concat(other);
+      streaming[listName] = keptVideo.concat(keptAudio);
       log(
-        `Forced ${listName}: video=${keptVideo.length}@${lastForcedVideoHeight || '?'}p audio=${keptAudio.length}` +
+        `Strict ${listName}: video=${keptVideo.length}@${lastForcedVideoHeight || 'blocked'}p audio=${keptAudio.length}` +
           (lastReportedBitrateKbps ? `~${lastReportedBitrateKbps}kbps` : '')
       );
+
+      try {
+        window.postMessage(
+          {
+            source: 'ytm-float-dock-page',
+            type: 'HQ_AUDIO_STATUS',
+            targetKbps: TARGET_AUDIO_KBPS,
+            selectedKbps: lastReportedBitrateKbps || null,
+            forcedVideoHeight: lastForcedVideoHeight || null
+          },
+          '*'
+        );
+      } catch (_) {
+        /* ignore */
+      }
     };
 
     forceList('adaptiveFormats');
@@ -279,17 +322,35 @@
         document.getElementById('movie_player') || document.querySelector('#movie_player');
       if (!player) return;
 
+      const rank = {
+        hd4320: 4320,
+        highres: 4320,
+        hd2160: 2160,
+        hd1440: 1440,
+        hd1080: 1080
+      };
       let maxQ = null;
-      if (typeof player.getMaxPlaybackQuality === 'function') {
-        maxQ = player.getMaxPlaybackQuality();
-      }
-      if ((!maxQ || maxQ === 'unknown') && typeof player.getAvailableQualityLevels === 'function') {
+      if (typeof player.getAvailableQualityLevels === 'function') {
         const levels = (player.getAvailableQualityLevels() || []).filter(
           (q) => q && q !== 'auto' && q !== 'unknown'
         );
-        if (levels.length) maxQ = levels[0];
+        for (const tier of VIDEO_TIERS) {
+          maxQ = levels.find((level) => rank[level] === tier);
+          if (maxQ) break;
+        }
       }
-      if (!maxQ || maxQ === 'unknown') return;
+      if (!maxQ && typeof player.getMaxPlaybackQuality === 'function') {
+        const reportedMax = player.getMaxPlaybackQuality();
+        if (rank[reportedMax]) maxQ = reportedMax;
+      }
+      const allowedPlayerQuality = new Set([
+        'hd4320',
+        'highres',
+        'hd2160',
+        'hd1440',
+        'hd1080'
+      ]);
+      if (!maxQ || maxQ === 'unknown' || !allowedPlayerQuality.has(maxQ)) return;
 
       if (typeof player.setPlaybackQualityRange === 'function') {
         player.setPlaybackQualityRange(maxQ, maxQ);

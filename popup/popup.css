@@ -84,6 +84,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 10px;
 }
 
 .slider-row input[type="range"] {
@@ -258,6 +259,11 @@ body {
 
 #videoResolution {
   color: #b39ddb;
+  font-weight: 600;
+}
+
+#audioQualityLabel {
+  color: #80cbc4;
   font-weight: 600;
 }
 

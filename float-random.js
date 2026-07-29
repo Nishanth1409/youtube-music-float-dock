@@ -723,10 +723,20 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  function minimizeForPip() {
+  function minimizeForPip(attempt = 0) {
     if (!ext()?.isContextValid()) return;
     ext().sendMessage({ type: 'WINDOW_CONTROL', action: 'minimize', forPip: true }, (response) => {
-      if (!response?.ok) logWarn('Minimize for PiP failed:', response?.reason);
+      if (response?.ok) return;
+
+      // A missing response means the service worker was still waking up.
+      if (!response && attempt < 2) {
+        setTimeout(() => minimizeForPip(attempt + 1), 250 * (attempt + 1));
+        return;
+      }
+
+      const reason = response?.reason || (response ? 'unknown' : 'no_response');
+      if (reason === 'minimized') return;
+      logWarn('Minimize for PiP failed:', reason);
     });
   }
 

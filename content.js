@@ -35,48 +35,32 @@
   const LEGACY_STORAGE_KEY = 'audioOnlyEnabled';
   const LOG_PREFIX = '[YTM Float]';
 
-  // Preference order is a fallback only — getBestAvailableQuality ranks by real height.
+  const VIDEO_QUALITY_TIERS = [4320, 2160, 1440, 1080];
+
+  // Strict order: 8K → 4K → 2K (1440p) → 1080p. Never select below 1080p.
   const QUALITY_PREFERENCE = [
-    'hd8640',
     'hd4320',
     'highres',
     'hd2160',
     'hd1440',
-    'hd1080',
-    'hd720',
-    'large',
-    'medium',
-    'small',
-    'tiny'
+    'hd1080'
   ];
 
   const QUALITY_LABELS = {
-    hd8640: '12K',
     hd4320: '8K',
-    highres: '4K+',
-    hd2160: '2160p',
-    hd1440: '1440p',
+    highres: '8K',
+    hd2160: '4K',
+    hd1440: '2K',
     hd1080: '1080p',
-    hd720: '720p',
-    large: '480p',
-    medium: '360p',
-    small: '240p',
-    tiny: '144p',
     auto: 'Auto'
   };
 
   const QUALITY_TO_HEIGHT = {
-    hd8640: 8640,
     hd4320: 4320,
-    highres: 2160,
+    highres: 4320,
     hd2160: 2160,
     hd1440: 1440,
-    hd1080: 1080,
-    hd720: 720,
-    large: 480,
-    medium: 360,
-    small: 240,
-    tiny: 144
+    hd1080: 1080
   };
 
   const STORAGE_QUALITY_KEY = 'yt-player-quality';
@@ -109,6 +93,8 @@
   const STATUS_PUSH_MIN_MS = 2000;
   let bindPlayerIntervalId = null;
   let forceQualityLockId = null;
+  let lastAudioKbps = 0;
+  let lastForcedVideoHeight = 0;
 
   const ext = () => window.YtmExtension;
 
@@ -240,6 +226,11 @@
     return parseQualityHeight(key);
   }
 
+  function isAllowedVideoQuality(level) {
+    const height = qualityRank(level);
+    return VIDEO_QUALITY_TIERS.includes(height);
+  }
+
   function installStorageQualityGuard() {
     if (storageGuardInstalled) return;
     storageGuardInstalled = true;
@@ -310,23 +301,23 @@
         available = (player.getAvailableQualityLevels() || []).filter(Boolean);
       }
 
-      // Also consider human-readable labels when the player exposes them.
-      if (typeof player.getAvailableQualityLabels === 'function') {
-        const labels = (player.getAvailableQualityLabels() || []).filter(Boolean);
-        for (const label of labels) {
-          if (!available.includes(label)) available.push(label);
-        }
-      }
-
       const candidates = available.filter((q) => {
         const key = String(q).trim().toLowerCase();
-        return key && key !== 'auto' && key !== 'unknown';
+        return (
+          key &&
+          key !== 'auto' &&
+          key !== 'unknown' &&
+          isAllowedVideoQuality(q)
+        );
       });
 
       if (candidates.length > 0) {
-        // Always pick the true highest by resolution rank (supports 12K / 8K / 4K / …).
-        candidates.sort((a, b) => qualityRank(b) - qualityRank(a));
-        if (qualityRank(candidates[0]) > 0) return candidates[0];
+        // Select only the first available exact rung:
+        // 4320p → 2160p → 1440p → 1080p.
+        for (const tier of VIDEO_QUALITY_TIERS) {
+          const atTier = candidates.find((quality) => qualityRank(quality) === tier);
+          if (atTier) return atTier;
+        }
 
         // Fallback: known preference order when ranks are unknown.
         const preferred = QUALITY_PREFERENCE.find((q) => candidates.includes(q));
@@ -336,7 +327,7 @@
 
       if (typeof player.getMaxPlaybackQuality === 'function') {
         const maxQ = player.getMaxPlaybackQuality();
-        if (maxQ && maxQ !== 'unknown') return maxQ;
+        if (maxQ && maxQ !== 'unknown' && isAllowedVideoQuality(maxQ)) return maxQ;
       }
     } catch (_) {
       /* ignore */
@@ -394,7 +385,7 @@
 
       if (typeof player.getMaxPlaybackQuality === 'function' && typeof player.setPlaybackQuality === 'function') {
         const maxQ = player.getMaxPlaybackQuality();
-        if (maxQ && maxQ !== 'unknown') {
+        if (maxQ && maxQ !== 'unknown' && isAllowedVideoQuality(maxQ)) {
           if (typeof player.setPlaybackQualityRange === 'function') {
             player.setPlaybackQualityRange(maxQ, maxQ);
           }
@@ -428,15 +419,15 @@
       // Prefer explicit resolution; treat "Premium" / "High" as lower priority than real heights.
       let height = parseQualityHeight(label);
       if (!height) height = qualityRank(label);
+      if (!VIDEO_QUALITY_TIERS.includes(height)) continue;
       if (height > bestHeight) {
         bestHeight = height;
         bestItem = item;
       }
     }
 
-    if (!bestItem) {
-      bestItem = items.find((item) => !/auto/i.test(item.innerText || '')) || items[0];
-    }
+    // Do not click Auto or any sub-1080 entry when no permitted tier exists.
+    if (!bestItem) return null;
 
     const label = (bestItem.innerText || bestItem.textContent || '').trim();
     bestItem.click();
@@ -581,10 +572,37 @@
     }
   }
 
+  function formatAudioQuality(kbps) {
+    const value = Number(kbps || 0);
+    if (value > 0) return `${value} kbps`;
+    return '—';
+  }
+
+  function readAudioKbpsFromPlayer(player) {
+    if (!player) return 0;
+    try {
+      if (typeof player.getStatsForNerds === 'function') {
+        const stats = player.getStatsForNerds() || {};
+        const raw =
+          stats.audiocodec ||
+          stats.audioCodec ||
+          stats['audio codec'] ||
+          stats.fmt ||
+          '';
+        const match = String(raw).match(/(\d{2,3})\s*k(?:bps)?/i);
+        if (match) return parseInt(match[1], 10);
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return 0;
+  }
+
   function buildStatus() {
     const player = getMoviePlayer();
     const quality = getCurrentQuality(player) || lastAppliedQuality;
     const resolution = getVideoResolution();
+    const liveAudioKbps = readAudioKbpsFromPlayer(player) || lastAudioKbps;
 
     return {
       enabled,
@@ -594,10 +612,29 @@
       quality: quality || '—',
       qualityLabel: resolution ? `${resolution.height}p` : formatQuality(quality),
       videoResolution: resolutionLabel(resolution),
+      audioKbps: liveAudioKbps || null,
+      audioQualityLabel: formatAudioQuality(liveAudioKbps),
+      targetAudioQuality: '250–320 kbps · fallback 128 kbps',
       targetQuality: formatQuality(lastTargetQuality || quality),
+      forcedVideoHeight: lastForcedVideoHeight || null,
       videoId: getCurrentVideoId(),
       onYouTubeMusic: true
     };
+  }
+
+  function bindPageHqAudioStatus() {
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || data.source !== 'ytm-float-dock-page') return;
+      if (data.type !== 'HQ_AUDIO_STATUS') return;
+
+      const kbps = Number(data.selectedKbps || 0);
+      if (kbps > 0) lastAudioKbps = kbps;
+      const height = Number(data.forcedVideoHeight || 0);
+      if (height > 0) lastForcedVideoHeight = height;
+      reportStatus();
+    });
   }
 
   function getAlbumArtUrlForMediaSession() {
@@ -809,6 +846,8 @@
     lastAppliedQuality = '';
     lastTargetQuality = '';
     lastUiQualityVideoId = '';
+    lastAudioKbps = 0;
+    lastForcedVideoHeight = 0;
     clearQualityRetries();
 
     log('Track change:', realId);
@@ -1004,6 +1043,7 @@
     if (!ext()?.isContextValid()) return;
 
     installStorageQualityGuard();
+    bindPageHqAudioStatus();
     bindWindowsMediaSessionSyncEvents();
     startWindowsMediaKeepAlive();
     bindMediaActionHandlers();
