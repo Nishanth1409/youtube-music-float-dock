@@ -95,6 +95,7 @@
   let forceQualityLockId = null;
   let lastAudioKbps = 0;
   let lastForcedVideoHeight = 0;
+  let lastAudioStatusVideoId = '';
 
   const ext = () => window.YtmExtension;
 
@@ -598,11 +599,21 @@
     return 0;
   }
 
+  /** Reported quality is only stale once a different track is actually playing. */
+  function isAudioStatusForCurrentTrack() {
+    if (!lastAudioStatusVideoId) return true;
+    const currentId = getRealVideoId();
+    if (!currentId) return true;
+    return currentId === lastAudioStatusVideoId;
+  }
+
   function buildStatus() {
     const player = getMoviePlayer();
     const quality = getCurrentQuality(player) || lastAppliedQuality;
     const resolution = getVideoResolution();
-    const liveAudioKbps = readAudioKbpsFromPlayer(player) || lastAudioKbps;
+    const forCurrentTrack = isAudioStatusForCurrentTrack();
+    const cachedAudioKbps = forCurrentTrack ? lastAudioKbps : 0;
+    const liveAudioKbps = readAudioKbpsFromPlayer(player) || cachedAudioKbps;
 
     return {
       enabled,
@@ -616,7 +627,7 @@
       audioQualityLabel: formatAudioQuality(liveAudioKbps),
       targetAudioQuality: '350→250→128 kbps',
       targetQuality: formatQuality(lastTargetQuality || quality),
-      forcedVideoHeight: lastForcedVideoHeight || null,
+      forcedVideoHeight: (forCurrentTrack ? lastForcedVideoHeight : 0) || null,
       videoId: getCurrentVideoId(),
       onYouTubeMusic: true
     };
@@ -629,6 +640,7 @@
       if (!data || data.source !== 'ytm-float-dock-page') return;
       if (data.type !== 'HQ_AUDIO_STATUS') return;
 
+      if (isValidVideoId(data.videoId)) lastAudioStatusVideoId = data.videoId;
       const kbps = Number(data.selectedKbps || 0);
       if (kbps > 0) lastAudioKbps = kbps;
       const height = Number(data.forcedVideoHeight || 0);
@@ -758,11 +770,20 @@
     safeBind('previoustrack', () => clickPrevious());
   }
 
+  function publishStatusToDock(status) {
+    try {
+      document.dispatchEvent(new CustomEvent('ytm-quality-status', { detail: status }));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   function reportStatus() {
     const status = buildStatus();
     // Keep Windows+A (System Media Controls) accurate even in PiP/minimized/fullscreen transitions.
     syncWindowsMediaSessionFromStatus(status);
     bindMediaActionHandlers();
+    publishStatusToDock(status);
 
     const serialized = JSON.stringify(status);
     const now = Date.now();
@@ -846,8 +867,8 @@
     lastAppliedQuality = '';
     lastTargetQuality = '';
     lastUiQualityVideoId = '';
-    lastAudioKbps = 0;
-    lastForcedVideoHeight = 0;
+    // Audio/video figures stay until the page reports them for this track:
+    // the /player response can land before this handler runs on first play.
     clearQualityRetries();
 
     log('Track change:', realId);

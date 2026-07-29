@@ -139,6 +139,53 @@
     pipBtn?.setAttribute('title', busy ? text : 'Picture-in-Picture + minimize');
   }
 
+  let lastQualityStatus = null;
+
+  function shortVideoQuality(status) {
+    const height = Number(status?.forcedVideoHeight || 0) ||
+      parseInt(String(status?.qualityLabel || '').replace(/[^\d]/g, ''), 10) || 0;
+    if (!height) return '—';
+    if (height >= 4320) return '8K';
+    if (height >= 2160) return '4K';
+    if (height >= 1440) return '2K';
+    return `${height}p`;
+  }
+
+  function shortAudioQuality(status) {
+    const kbps = Number(status?.audioKbps || 0);
+    return kbps > 0 ? `${kbps}k` : '—';
+  }
+
+  /** Live video/audio readout inside the dock, refreshed from content.js. */
+  function renderDockQuality() {
+    if (!dock) return;
+    const box = dock.querySelector('.ytm-dock-quality');
+    if (!box) return;
+
+    const videoEl = box.querySelector('.ytm-dock-quality-video');
+    const audioEl = box.querySelector('.ytm-dock-quality-audio');
+    const videoText = shortVideoQuality(lastQualityStatus);
+    const audioText = shortAudioQuality(lastQualityStatus);
+
+    if (videoEl) videoEl.textContent = videoText;
+    if (audioEl) audioEl.textContent = audioText;
+
+    const resolution = lastQualityStatus?.videoResolution;
+    box.setAttribute(
+      'title',
+      `Video ${videoText === '—' ? 'detecting…' : videoText}` +
+        (resolution && resolution !== '—' ? ` (${resolution})` : '') +
+        ` · Audio ${audioText === '—' ? 'detecting…' : audioText + 'bps'}`
+    );
+  }
+
+  function bindDockQualityUpdates() {
+    document.addEventListener('ytm-quality-status', (event) => {
+      lastQualityStatus = event.detail || null;
+      renderDockQuality();
+    });
+  }
+
   const PIP_CANVAS_VIDEO_ID = 'ytm-pip-canvas-video';
   const PIP_ART_CANVAS_ID = 'ytm-pip-art-canvas';
   const DOC_PIP_ART_ID = 'ytm-doc-pip-art';
@@ -1618,6 +1665,12 @@
 
     const modes = [
       {
+        id: 'fullscreen',
+        label: 'Full',
+        title: 'Fullscreen window',
+        icon: '<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>'
+      },
+      {
         id: 'maximized',
         label: 'Max',
         title: 'Maximized window',
@@ -1665,7 +1718,7 @@
     }, 0);
   }
 
-  /** Cycle window: maximized → normal → taskbar. */
+  /** Cycle window: fullscreen → maximized → normal → taskbar. */
   function cycleBrowserDisplay() {
     if (!ext()?.isContextValid()) return;
     ext().sendMessage({ type: 'WINDOW_CONTROL', action: 'cycle-display' }, (response) => {
@@ -1747,10 +1800,6 @@
       toggleDisplayMenu();
       return;
     }
-    if (action === 'fullscreen') {
-      toggleDisplayMenu();
-      return;
-    }
     if (action === 'minimize') {
       setWindowDisplay('minimized');
       return;
@@ -1797,7 +1846,7 @@
         </svg>
       </button>
       <div class="ytm-dock-window-controls">
-        <button type="button" class="ytm-dock-btn ytm-dock-max" data-action="display-menu" title="Choose window mode" aria-label="Choose window display mode" aria-haspopup="menu">
+        <button type="button" class="ytm-dock-btn ytm-dock-max" data-action="display-menu" title="Fullscreen / Max / Window / Minimize" aria-label="Choose window display mode" aria-haspopup="menu">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 7h4V5H5v6h2V7zm10 0v4h2V5h-6v2h4zM7 17v-4H5v6h6v-2H7zm10 0h-4v2h6v-6h-2v4z"/></svg>
         </button>
         <button type="button" class="ytm-dock-btn ytm-dock-min" data-action="minimize" title="Minimize to taskbar" aria-label="Minimize window to taskbar">
@@ -1817,6 +1866,10 @@
           <path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 5.17-5.17L10.59 9.17zM14.83 4H18v3.17l-1.59-1.59L14.83 4zM14.83 12.83 13.41 14.24 16.66 17.5 14.83 19.34 18 19.34v-3.17l-1.59 1.59-1.58-1.58zM10 18l-6-6 1.41-1.41L10 15.17l4.59-4.58L16 12l-6 6z"/>
         </svg>
       </button>
+      <div class="ytm-dock-quality" aria-live="polite">
+        <span class="ytm-dock-quality-video">—</span>
+        <span class="ytm-dock-quality-audio">—</span>
+      </div>
     `;
 
     const vdrag = dock.querySelector('.ytm-dock-vdrag');
@@ -1831,6 +1884,7 @@
 
     document.documentElement.appendChild(dock);
     applyDockPosition();
+    renderDockQuality();
     return dock;
   }
 
@@ -1863,6 +1917,7 @@
     cleanupLegacyRadioAndShuffle();
     attachMediaSessionSync();
     startMediaSessionPolling();
+    bindDockQualityUpdates();
 
     document.addEventListener('ytm-track-changed', () => {
       attachMediaSessionSync();

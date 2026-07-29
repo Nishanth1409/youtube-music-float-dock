@@ -27,6 +27,7 @@
   let lockIntervalId = null;
   let lastReportedBitrateKbps = 0;
   let lastForcedVideoHeight = 0;
+  let lastStatusVideoId = '';
 
   function log(...args) {
     if (typeof console !== 'undefined' && console.debug) {
@@ -173,8 +174,9 @@
     return { tier: 0, formats: [] };
   }
 
-  function forceHighestFormats(streaming) {
+  function forceHighestFormats(streaming, videoId) {
     if (!streaming || typeof streaming !== 'object') return;
+    if (videoId) lastStatusVideoId = videoId;
 
     const forceList = (listName) => {
       const list = streaming[listName];
@@ -231,7 +233,8 @@
             type: 'HQ_AUDIO_STATUS',
             targetKbps: TARGET_AUDIO_KBPS,
             selectedKbps: lastReportedBitrateKbps || null,
-            forcedVideoHeight: lastForcedVideoHeight || null
+            forcedVideoHeight: lastForcedVideoHeight || null,
+            videoId: lastStatusVideoId || null
           },
           '*'
         );
@@ -244,16 +247,28 @@
     forceList('formats');
   }
 
+  function playerResponseVideoId(response) {
+    return (
+      response?.videoDetails?.videoId ||
+      response?.response?.videoDetails?.videoId ||
+      response?.playerResponse?.videoDetails?.videoId ||
+      ''
+    );
+  }
+
   function preferHighestInPlayerResponse(response) {
     if (!response || typeof response !== 'object') return response;
     try {
-      if (response.streamingData) forceHighestFormats(response.streamingData);
+      // The popup pairs the reported quality with this id so it survives a
+      // track-change reset that lands after the /player response.
+      const videoId = playerResponseVideoId(response);
+      if (response.streamingData) forceHighestFormats(response.streamingData, videoId);
       if (response.response && response.response.streamingData) {
-        forceHighestFormats(response.response.streamingData);
+        forceHighestFormats(response.response.streamingData, videoId);
       }
       // Some payloads nest playerResponse
       if (response.playerResponse && response.playerResponse.streamingData) {
-        forceHighestFormats(response.playerResponse.streamingData);
+        forceHighestFormats(response.playerResponse.streamingData, videoId);
       }
     } catch (_) {
       /* ignore */
@@ -414,7 +429,8 @@
           type: 'HQ_AUDIO_STATUS',
           targetKbps: TARGET_AUDIO_KBPS,
           selectedKbps: lastReportedBitrateKbps || null,
-          forcedVideoHeight: lastForcedVideoHeight || null
+          forcedVideoHeight: lastForcedVideoHeight || null,
+          videoId: lastStatusVideoId || null
         },
         '*'
       );
