@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Float Dock — A floating control dock for YouTube Music</title>
+<meta name="description" content="Forced high-quality playback, a draggable control strip, Picture-in-Picture, and random play drawn from listen history that never leaves your machine." />
+<meta name="author" content="Nishanth K R" />
+<meta name="color-scheme" content="dark" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Float Dock — A floating control dock for YouTube Music" />
+<meta property="og:description" content="Forced high-quality playback, a draggable control strip, Picture-in-Picture, and random play drawn from listen history that never leaves your machine." />
+<meta property="og:url" content="https://nishanth1409.github.io/youtube-music-float-dock/" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23ff2d55%22/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;650;700;750;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root{--a1:#ff2d55;--a2:#f43f5e;--a3:#a855f7}
+
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#05070e; --bg2:#080c17;
+  --txt:#eaf0fa; --mut:#93a3bd; --dim:#63748f;
+  --card:rgba(255,255,255,.042); --card2:rgba(255,255,255,.028);
+  --stroke:rgba(255,255,255,.085); --stroke2:rgba(255,255,255,.14);
+  --r:18px; --maxw:1180px;
+  --f:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --fm:'JetBrains Mono',ui-monospace,'Cascadia Code',Consolas,monospace;
+}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--f);
+  -webkit-font-smoothing:antialiased;line-height:1.62;overflow-x:hidden}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+
+/* ---------- background ---------- */
+.aurora{position:fixed;inset:-15% -10%;z-index:0;filter:blur(90px);opacity:.62;pointer-events:none}
+.blob{position:absolute;border-radius:50%;mix-blend-mode:screen}
+.b1{width:52vw;height:52vw;left:-8vw;top:-14vw;background:var(--a1);animation:drift1 26s ease-in-out infinite}
+.b2{width:46vw;height:46vw;right:-6vw;top:-6vw;background:var(--a2);animation:drift2 31s ease-in-out infinite}
+.b3{width:42vw;height:42vw;left:28vw;top:32vw;background:var(--a3);animation:drift3 36s ease-in-out infinite}
+@keyframes drift1{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(7vw,5vw,0) scale(1.14)}}
+@keyframes drift2{0%,100%{transform:translate3d(0,0,0) scale(1.06)}50%{transform:translate3d(-6vw,7vw,0) scale(.9)}}
+@keyframes drift3{0%,100%{transform:translate3d(0,0,0) scale(.95)}50%{transform:translate3d(5vw,-6vw,0) scale(1.15)}}
+.grid-bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;
+  background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(120% 90% at 50% 0%,#000 25%,transparent 75%);
+  -webkit-mask-image:radial-gradient(120% 90% at 50% 0%,#000 25%,transparent 75%)}
+.vignette{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(120% 80% at 50% -10%,transparent 40%,rgba(5,7,14,.85) 100%)}
+.shell{position:relative;z-index:2}
+
+/* ---------- layout ---------- */
+.wrap{width:100%;max-width:var(--maxw);margin:0 auto;padding:0 26px}
+section{padding:96px 0;position:relative}
+section::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:-1;
+  background:radial-gradient(72% 55% at 50% 0%,color-mix(in srgb,var(--a2) 11%,transparent),transparent 72%)}
+section:nth-of-type(even)::before{
+  background:radial-gradient(72% 55% at 50% 0%,color-mix(in srgb,var(--a3) 10%,transparent),transparent 72%)}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:12.5px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--mut);
+  border:1px solid var(--stroke);background:var(--card);padding:7px 14px;border-radius:999px}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--a1);
+  box-shadow:0 0 12px var(--a1);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+h1,h2,h3{line-height:1.14;letter-spacing:-.022em;margin:0}
+h1{font-size:clamp(2.5rem,6.2vw,4.5rem);font-weight:800}
+h2{font-size:clamp(1.85rem,3.6vw,2.75rem);font-weight:800}
+h3{font-size:1.12rem;font-weight:700;letter-spacing:-.01em}
+p{margin:0}
+.grad{background:linear-gradient(100deg,var(--a1),var(--a2) 42%,var(--a3) 78%,var(--a1));
+  background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:shimmer 9s linear infinite}
+@keyframes shimmer{to{background-position:220% 0}}
+.lead{color:var(--mut);font-size:1.06rem;max-width:64ch}
+.shead{max-width:70ch;margin-bottom:46px}
+.shead h2{margin:16px 0 14px}
+
+/* ---------- nav ---------- */
+.nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(18px) saturate(150%);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);
+  background:linear-gradient(180deg,rgba(5,7,14,.82),rgba(5,7,14,.5));
+  border-bottom:1px solid var(--stroke)}
+.nav .wrap{display:flex;align-items:center;gap:18px;height:66px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:750;letter-spacing:-.01em;white-space:nowrap}
+.logo{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;
+  background:linear-gradient(135deg,var(--a1),var(--a2) 55%,var(--a3));
+  color:#04070d;font-weight:900;font-size:13px;letter-spacing:-.03em;
+  box-shadow:0 6px 20px -6px var(--a2)}
+.nlinks{display:flex;gap:4px;margin-left:auto}
+.nlinks a{padding:8px 13px;border-radius:10px;font-size:14px;color:var(--mut);font-weight:550;
+  transition:.18s}
+.nlinks a:hover{color:var(--txt);background:var(--card)}
+.nav .btn{margin-left:8px}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 20px;border-radius:12px;
+  font-size:14.5px;font-weight:650;border:1px solid transparent;cursor:pointer;transition:.2s;
+  white-space:nowrap}
+.btn svg{width:16px;height:16px}
+.btn-p{background:linear-gradient(135deg,var(--a1),var(--a2) 60%,var(--a3));color:#04070d;
+  box-shadow:0 14px 34px -14px var(--a2)}
+.btn-p:hover{transform:translateY(-2px);box-shadow:0 20px 42px -14px var(--a2)}
+.btn-g{background:var(--card);border-color:var(--stroke2);color:var(--txt)}
+.btn-g:hover{background:rgba(255,255,255,.08);transform:translateY(-2px)}
+.btn-s{padding:9px 15px;font-size:13.5px}
+
+/* ---------- hero ---------- */
+.hero{padding:86px 0 60px}
+.hero-grid{display:grid;grid-template-columns:1.02fr .98fr;gap:56px;align-items:center}
+.hero h1{margin:20px 0 20px}
+.hero .lead{font-size:1.13rem}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin:32px 0 30px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px}
+.pill{font-size:12px;font-weight:600;padding:5px 11px;border-radius:8px;color:var(--mut);
+  border:1px solid var(--stroke);background:var(--card2);font-family:var(--fm)}
+.stats{display:flex;flex-wrap:wrap;gap:14px;padding-top:26px;border-top:1px solid var(--stroke)}
+.stat{min-width:96px}
+.stat b{display:block;font-size:1.6rem;font-weight:800;letter-spacing:-.03em;
+  background:linear-gradient(135deg,var(--a1),var(--a2));-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+.stat span{font-size:12.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+
+/* ---------- mock window ---------- */
+.mock{border-radius:16px;overflow:hidden;border:1px solid var(--stroke2);
+  background:linear-gradient(170deg,rgba(18,24,40,.95),rgba(8,11,20,.98));
+  box-shadow:0 40px 90px -30px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.03) inset;
+  backdrop-filter:blur(8px)}
+.mock.tilt{transform:perspective(1500px) rotateY(-7deg) rotateX(3deg);transition:.6s}
+.mock.tilt:hover{transform:perspective(1500px) rotateY(-2deg) rotateX(1deg)}
+.mock-bar{display:flex;align-items:center;gap:8px;padding:11px 14px;
+  background:rgba(255,255,255,.035);border-bottom:1px solid var(--stroke)}
+.dots{display:flex;gap:6px}
+.dots i{width:10px;height:10px;border-radius:50%;background:#3a4459}
+.dots i:nth-child(1){background:#ff5f57}.dots i:nth-child(2){background:#febc2e}
+.dots i:nth-child(3){background:#28c840}
+.mock-title{font-size:12.5px;color:var(--mut);font-family:var(--fm);margin-left:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mock-body{padding:18px}
+.mock-glow{position:absolute;inset:0;pointer-events:none}
+.mock-holder{position:relative}
+.mock-holder::before{content:'';position:absolute;inset:-14% -8%;z-index:-1;border-radius:40px;
+  background:radial-gradient(60% 60% at 50% 50%,var(--a2),transparent 70%);opacity:.28;filter:blur(50px)}
+
+/* mock rows */
+.mrow{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:11px;
+  border:1px solid transparent;transition:.2s}
+.mrow+.mrow{margin-top:4px}
+.mrow.act{background:linear-gradient(90deg,rgba(255,255,255,.07),transparent);
+  border-color:var(--stroke)}
+.mico{width:32px;height:32px;flex:0 0 auto;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--a1) 26%,transparent),color-mix(in srgb,var(--a2) 20%,transparent));
+  border:1px solid var(--stroke);color:var(--txt)}
+.mico svg{width:16px;height:16px}
+.mtxt{min-width:0;flex:1}
+.mtxt b{display:block;font-size:13.5px;font-weight:650;letter-spacing:-.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mtxt span{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;display:block}
+.mtag{font-size:10.5px;font-family:var(--fm);color:var(--mut);border:1px solid var(--stroke);
+  padding:3px 8px;border-radius:7px;white-space:nowrap;flex:0 0 auto}
+.mhead{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--dim);margin:16px 4px 8px}
+.mhead:first-child{margin-top:2px}
+.sw{width:38px;height:22px;border-radius:999px;flex:0 0 auto;position:relative;
+  background:rgba(255,255,255,.12);border:1px solid var(--stroke);transition:.2s}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+  background:#8895ab;transition:.2s}
+.sw.on{background:linear-gradient(135deg,var(--a1),var(--a2))}
+.sw.on::after{left:18px;background:#fff}
+.mbar{height:6px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden;flex:1}
+.mbar i{display:block;height:100%;border-radius:999px;
+  background:linear-gradient(90deg,var(--a1),var(--a2))}
+.mchips{display:flex;flex-wrap:wrap;gap:6px;padding:6px 4px}
+.mchips span{font-size:11px;font-family:var(--fm);padding:4px 9px;border-radius:7px;
+  color:var(--mut);background:var(--card);border:1px solid var(--stroke)}
+.term{font-family:var(--fm);font-size:12.5px;line-height:1.85;padding:16px 18px}
+.term div{white-space:pre-wrap;word-break:break-word}
+.term .c{color:var(--a1)}.term .o{color:var(--mut)}.term .w{color:#f0b23a}
+.mstats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:4px}
+.mstat{padding:12px;border-radius:12px;background:var(--card);border:1px solid var(--stroke)}
+.mstat b{display:block;font-size:1.25rem;font-weight:800;letter-spacing:-.03em;
+  background:linear-gradient(135deg,var(--a1),var(--a2));-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+.mstat span{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;
+  font-weight:600}
+.spark{display:flex;align-items:flex-end;gap:4px;height:56px;padding:6px 4px}
+.spark i{flex:1;border-radius:3px 3px 0 0;background:linear-gradient(180deg,var(--a1),var(--a2));
+  opacity:.85}
+
+/* ---------- marquee ---------- */
+.mq{overflow:hidden;border-top:1px solid var(--stroke);border-bottom:1px solid var(--stroke);
+  background:rgba(255,255,255,.02);padding:15px 0;
+  mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
+.mq-in{display:flex;gap:44px;width:max-content;animation:slide 32s linear infinite}
+.mq-in span{font-size:13px;font-weight:600;color:var(--dim);white-space:nowrap;font-family:var(--fm)}
+.mq-in span::after{content:'◆';margin-left:44px;color:var(--a2);opacity:.55}
+@keyframes slide{to{transform:translateX(-50%)}}
+
+/* ---------- cards ---------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(292px,1fr));gap:20px}
+.card{position:relative;padding:26px;border-radius:var(--r);background:var(--card);
+  border:1px solid var(--stroke);overflow:hidden;transition:.28s}
+.card::after{content:'';position:absolute;inset:0;border-radius:var(--r);padding:1px;
+  background:linear-gradient(135deg,var(--a1),transparent 45%,transparent 60%,var(--a3));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:.28s;pointer-events:none}
+.card:hover{transform:translateY(-4px);background:rgba(255,255,255,.062)}
+.card:hover::after{opacity:.9}
+.tile{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;margin-bottom:18px;
+  background:linear-gradient(135deg,var(--a1),var(--a2) 70%);color:#04070d;
+  box-shadow:0 10px 26px -10px var(--a2)}
+.tile svg{width:21px;height:21px}
+.card h3{margin-bottom:9px}
+.card p{color:var(--mut);font-size:14.5px}
+.num{position:absolute;top:20px;right:24px;font-family:var(--fm);font-size:2.6rem;font-weight:800;
+  color:rgba(255,255,255,.055);letter-spacing:-.04em;line-height:1}
+
+/* ---------- gallery ---------- */
+.gal{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:24px}
+.gal figure{margin:0}
+.gal figcaption{color:var(--dim);font-size:13px;margin-top:12px;text-align:center}
+
+/* ---------- steps ---------- */
+.steps{display:grid;gap:18px}
+.step{display:grid;grid-template-columns:52px 1fr;gap:20px;padding:24px;border-radius:var(--r);
+  background:var(--card);border:1px solid var(--stroke)}
+.sn{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-weight:800;
+  font-family:var(--fm);background:linear-gradient(135deg,var(--a1),var(--a2));color:#04070d}
+.step h3{margin-bottom:8px}
+.step p{color:var(--mut);font-size:14.5px;margin-bottom:14px}
+pre{margin:0;padding:15px 17px;border-radius:12px;background:rgba(0,0,0,.5);
+  border:1px solid var(--stroke);overflow-x:auto}
+code{font-family:var(--fm);font-size:12.8px;color:#cfe0f5;white-space:pre}
+.ln{color:var(--a1)}
+
+/* ---------- table ---------- */
+.tbl{border:1px solid var(--stroke);border-radius:var(--r);overflow:hidden;background:var(--card2)}
+.tr{display:grid;grid-template-columns:230px 1fr;gap:18px;padding:15px 22px;
+  border-bottom:1px solid var(--stroke);font-size:14.5px;align-items:center}
+.tr:last-child{border-bottom:none}
+.tr b{font-weight:650}
+.tr span{color:var(--mut)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+
+/* ---------- faq ---------- */
+details{border:1px solid var(--stroke);border-radius:14px;background:var(--card);
+  padding:0 20px;margin-bottom:12px;transition:.2s}
+details[open]{background:rgba(255,255,255,.058)}
+summary{cursor:pointer;padding:17px 0;font-weight:650;font-size:15px;list-style:none;
+  display:flex;align-items:center;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'+';font-family:var(--fm);color:var(--a1);font-weight:800;font-size:17px;
+  flex:0 0 auto;transition:.2s}
+details[open] summary::before{content:'−'}
+details p{color:var(--mut);font-size:14.5px;padding:0 0 18px 28px}
+
+/* ---------- cta band ---------- */
+.band{border-radius:24px;padding:56px 44px;text-align:center;position:relative;overflow:hidden;
+  border:1px solid var(--stroke2);
+  background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
+.band::before{content:'';position:absolute;inset:-60% -20%;
+  background:conic-gradient(from 0deg,var(--a1),var(--a2),var(--a3),var(--a1));
+  opacity:.16;animation:spin 22s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.band>*{position:relative}
+.band p{color:var(--mut);margin:14px auto 28px;max-width:56ch}
+.band .cta{justify-content:center;margin:0}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--stroke);padding:60px 0 44px;
+  background:linear-gradient(180deg,transparent,rgba(255,255,255,.022))}
+.fgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:40px;margin-bottom:42px}
+.fgrid h4{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);
+  margin:0 0 16px;font-weight:700}
+.fgrid a{display:block;color:var(--mut);font-size:14px;padding:4px 0;transition:.18s}
+.fgrid a:hover{color:var(--a1)}
+.fbrand p{color:var(--mut);font-size:14px;margin-top:14px;max-width:40ch}
+.fbot{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;
+  padding-top:26px;border-top:1px solid var(--stroke);color:var(--dim);font-size:13.5px}
+.fbot em{color:var(--mut);font-style:italic}
+
+/* ---------- reveal ---------- */
+.rv{opacity:0;transform:translateY(26px);transition:.75s cubic-bezier(.16,1,.3,1)}
+.rv.in{opacity:1;transform:none}
+
+/* ---------- responsive ---------- */
+@media(max-width:1000px){
+  .hero-grid{grid-template-columns:1fr;gap:44px}
+  .mock.tilt{transform:none}
+  .fgrid{grid-template-columns:1fr 1fr}
+  .two{grid-template-columns:1fr}
+}
+@media(max-width:720px){
+  section{padding:70px 0}
+  .hero{padding:52px 0 40px}
+  .wrap{padding:0 18px}
+  .nlinks{display:none}
+  .tr{grid-template-columns:1fr;gap:4px}
+  .fgrid{grid-template-columns:1fr;gap:30px}
+  .band{padding:40px 22px}
+  .mstats{grid-template-columns:1fr}
+  .step{grid-template-columns:1fr;gap:14px}
+}
+@media(min-width:1700px){
+  :root{--maxw:1420px}
+  h1{font-size:5rem}
+  .hero{padding:110px 0 74px}
+  section{padding:118px 0}
+}
+
+</style>
+</head>
+<body>
+<div class="aurora"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+<div class="grid-bg"></div>
+<div class="vignette"></div>
+
+<div class="shell">
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><span class="logo">FD</span> Float Dock</a>
+    <nav class="nlinks"><a href="#features">Features</a><a href="#preview">Preview</a><a href="#install">Install</a><a href="#stack">Stack</a><a href="#faq">FAQ</a></nav>
+    <a class="btn btn-g btn-s" href="https://github.com/Nishanth1409/youtube-music-float-dock" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.4 6.2-1.5 6.2-6.7A5.2 5.2 0 0 0 19 4.8 4.9 4.9 0 0 0 18.9 1S17.6.6 15 2.4a12.3 12.3 0 0 0-6 0C6.4.6 5.1 1 5.1 1A4.9 4.9 0 0 0 5 4.8a5.2 5.2 0 0 0-1.4 3.6c0 5.2 3.2 6.3 6.2 6.7A3.4 3.4 0 0 0 9 17.7V22"/></svg> GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow"><span class="dot"></span>Chrome MV3 · music.youtube.com only</span>
+        <h1>A floating dock for <span class="grad">YouTube Music</span></h1>
+        <p class="lead">Forced high-quality playback, a draggable control strip, Picture-in-Picture, and random play drawn from listen history that never leaves your machine.</p>
+        <div class="cta">
+          <a class="btn btn-p" href="#install"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><path d="M12 15V3"/></svg> Load the extension</a>
+          
+          <a class="btn btn-g" href="https://github.com/Nishanth1409/youtube-music-float-dock" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.4 6.2-1.5 6.2-6.7A5.2 5.2 0 0 0 19 4.8 4.9 4.9 0 0 0 18.9 1S17.6.6 15 2.4a12.3 12.3 0 0 0-6 0C6.4.6 5.1 1 5.1 1A4.9 4.9 0 0 0 5 4.8a5.2 5.2 0 0 0-1.4 3.6c0 5.2 3.2 6.3 6.2 6.7A3.4 3.4 0 0 0 9 17.7V22"/></svg> Source</a>
+        </div>
+        <div class="badges"><span class="pill">Manifest V3</span><span class="pill">One host permission</span><span class="pill">Local-only history</span><span class="pill">No analytics</span></div>
+        <div class="stats"><div class="stat"><b>MV3</b><span>Chrome extension</span></div><div class="stat"><b>1</b><span>Host permission</span></div><div class="stat"><b>0</b><span>Servers involved</span></div></div>
+      </div>
+      <div class="mock-holder rv"><div class="mock tilt"><div class="mock-bar"><div class="dots"><i></i><i></i><i></i></div><div class="mock-title">music.youtube.com — Float Dock</div></div><div class="mock-body"><div class="mhead">Now playing</div><div class="mrow act"><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></div><div class="mtxt"><b>Track queued from your library</b><span>Album · 4:11</span></div><span class="mtag">Playing</span></div><div class="mrow"><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h3l2-7 3 14 3-11 2 6h5"/></svg></div><div class="mtxt" style="max-width:118px"><b>Progress</b></div><div class="mbar"><i style="width:46%"></i></div><span class="mtag">1:54</span></div><div class="mhead">Dock controls</div><div class="mrow"><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><div class="mtxt"><b>HQ playback</b><span>Re-applied on every track</span></div><div class="sw on"></div></div><div class="mrow"><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div><div class="mtxt"><b>Show float dock</b></div><div class="sw on"></div></div><div class="mrow"><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div class="mtxt"><b>Auto fullscreen on play</b></div><div class="sw"></div></div><div class="mchips"><span>F11</span><span>Maximize</span><span>Minimize</span><span>PiP</span><span>Random</span></div></div></div></div>
+    </div>
+  </section>
+
+  <div class="mq"><div class="mq-in"><span>Floating dock</span><span>Forced HQ playback</span><span>Picture-in-Picture</span><span>Random from history</span><span>F11 fullscreen</span><span>Local storage only</span><span>Floating dock</span><span>Forced HQ playback</span><span>Picture-in-Picture</span><span>Random from history</span><span>F11 fullscreen</span><span>Local storage only</span></div></div>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="dot"></span>Features</span>
+        <h2>Small dock, fewer clicks</h2>
+        <p class="lead">Everything the dock does happens on the page you already have open — no companion app, no account, no sync service.</p>
+      </div>
+      <div class="cards"><div class="card rv"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></div><h3>Floating dock</h3><p>A compact control strip beside the player. Drag it to any vertical position and it stays there as you move between pages.</p></div><div class="card rv"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><h3>Forced HQ playback</h3><p>The highest available quality is re-applied on every track change and on single-page navigation, not only when the tab first loads.</p></div><div class="card rv"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><rect x="12" y="12" width="8" height="6" rx="1"/></svg></div><h3>Picture-in-Picture</h3><p>Pop the video out with play, pause, and return-to-tab controls that keep working while you use other applications.</p></div><div class="card rv"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></div><h3>Random play</h3><p>Shuffle from your own listen history, recorded locally in browser storage. No account and no server to shuffle against.</p></div><div class="card rv"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><h3>Window controls</h3><p>F11 fullscreen, maximize, restore, and minimize straight from the dock instead of reaching for window buttons.</p></div><div class="card rv"><div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div><h3>Local-only by design</h3><p>The extension declares a single host permission for music.youtube.com. Regular YouTube and every other site are untouched.</p></div></div>
+    </div>
+  </section>
+
+  <section id="preview">
+    <div class="wrap">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="dot"></span>Preview</span>
+        <h2>The dock, the popup, and the history</h2>
+        <p class="lead">Three surfaces: the dock on the page, the toolbar popup, and the local store that random play reads from.</p>
+      </div>
+      <div class="gal"><figure class="rv"><div class="mock"><div class="mock-bar"><div class="dots"><i></i><i></i><i></i></div><div class="mock-title">Extension popup</div></div><div class="mock-body"><div class="mhead">Status</div><div class="mstats"><div class="mstat"><b>ON</b><span>HQ</span></div><div class="mstat"><b>Visible</b><span>Dock</span></div><div class="mstat"><b>High</b><span>Quality</span></div></div><div class="mhead">Preferences</div><div class="mrow"><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><div class="mtxt"><b>Force highest quality</b></div><div class="sw on"></div></div><div class="mrow"><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></div><div class="mtxt"><b>Random from history</b></div><div class="sw on"></div></div><div class="mrow"><div class="mico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></div><div class="mtxt"><b>Dock position</b><span>Right edge · 42% from top</span></div><span class="mtag">Saved</span></div></div></div><figcaption>The popup mirrors dock state, so you can check it without opening the page.</figcaption></figure><figure class="rv"><div class="mock"><div class="mock-bar"><div class="dots"><i></i><i></i><i></i></div><div class="mock-title">Listen history — chrome.storage.local</div></div><div class="mock-body" style="padding:0"><div class="term"><div class="c">&gt; storage.get('history')</div><div class="o">128 tracks recorded on this machine</div><div class="c">&gt; random()</div><div class="o">picked track 63 of 128 → seeking player</div><div class="w">network requests made: 0</div></div></div></div><figcaption>Random play reads local storage only; nothing is uploaded anywhere.</figcaption></figure></div>
+      
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="dot"></span>Install</span>
+        <h2>Load it unpacked in three minutes</h2>
+        <p class="lead">The extension is small enough to read end to end before you install it, which is exactly the point.</p>
+      </div>
+      <div class="steps"><div class="step rv"><div class="sn">1</div><div><h3>Clone the repository</h3><p>You need the folder that contains manifest.json — Chrome loads the directory, not a packaged file.</p><pre><code>git clone https://github.com/Nishanth1409/youtube-music-float-dock.git
+cd youtube-music-float-dock</code></pre></div></div><div class="step rv"><div class="sn">2</div><div><h3>Load it in Chrome</h3><p>Open the extensions page, turn on Developer mode, choose Load unpacked, and select the cloned folder.</p><pre><code>chrome://extensions  →  Developer mode  →  Load unpacked</code></pre></div></div><div class="step rv"><div class="sn">3</div><div><h3>Turn the dock on</h3><p>Open music.youtube.com, click the extension icon, then enable HQ playback and Show float dock.</p></div></div><div class="step rv"><div class="sn">4</div><div><h3>After you change the code</h3><p>Press Reload on the extension card, then refresh the YouTube Music tab so the content scripts re-inject.</p><pre><code>chrome://extensions  →  Reload</code></pre></div></div></div>
+    </div>
+  </section>
+
+  <section id="stack">
+    <div class="wrap two">
+      <div class="rv">
+        <span class="eyebrow"><span class="dot"></span>Under the hood</span>
+        <h2 style="margin:16px 0 14px">Built with</h2>
+        <p class="lead">A Manifest V3 extension split across an isolated content script, a main-world script for player access, a service worker, and a popup.</p>
+      </div>
+      <div class="tbl rv"><div class="tr"><b>Extension</b><span>Chrome Manifest V3</span></div><div class="tr"><b>Scripts</b><span>Content scripts (main + isolated worlds) · service worker · popup</span></div><div class="tr"><b>APIs</b><span>chrome.storage · tabs · windows</span></div><div class="tr"><b>Host access</b><span>https://music.youtube.com/* and nothing else</span></div></div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="shead rv">
+        <span class="eyebrow"><span class="dot"></span>FAQ</span>
+        <h2>Good to know</h2>
+      </div>
+      <details class="rv"><summary>Does this touch regular YouTube?</summary><p>No. The manifest requests music.youtube.com only, so youtube.com is never injected into.</p></details><details class="rv"><summary>Where does listen history live?</summary><p>In chrome.storage on your own machine. There is no backend, so there is nothing to upload it to.</p></details><details class="rv"><summary>Random play does nothing. Why?</summary><p>History needs a few entries first. Play some music normally, then try Random again.</p></details><details class="rv"><summary>Is it on the Chrome Web Store?</summary><p>Not at the moment. Load it unpacked from the repository — the source is short and readable.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="band rv">
+        <h2>Take back control of the player</h2>
+        <p>Read every line, load it unpacked, and keep your listening data where it belongs — on your own machine.</p>
+        <div class="cta">
+          <a class="btn btn-p" href="https://github.com/Nishanth1409/youtube-music-float-dock" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.4 6.2-1.5 6.2-6.7A5.2 5.2 0 0 0 19 4.8 4.9 4.9 0 0 0 18.9 1S17.6.6 15 2.4a12.3 12.3 0 0 0-6 0C6.4.6 5.1 1 5.1 1A4.9 4.9 0 0 0 5 4.8a5.2 5.2 0 0 0-1.4 3.6c0 5.2 3.2 6.3 6.2 6.7A3.4 3.4 0 0 0 9 17.7V22"/></svg> Open the repo</a>
+          <a class="btn btn-g" href="https://nkrportfolio.vercel.app" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg> Portfolio</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="fgrid">
+      <div class="fbrand">
+        <div class="brand"><span class="logo">FD</span> Float Dock</div>
+        <p>A floating control dock for YouTube Music. Built and maintained by Nishanth K R.</p>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <a href="https://github.com/Nishanth1409/youtube-music-float-dock" target="_blank" rel="noopener">Repository</a>
+        <a href="#features">Features</a>
+        <a href="#install">Install guide</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div>
+        <h4>Credits</h4>
+        <a href="https://github.com/Nishanth1409" target="_blank" rel="noopener">Nishanth K R — author</a>
+        
+        <a href="https://nkrportfolio.vercel.app" target="_blank" rel="noopener">nkrportfolio.vercel.app</a>
+      </div>
+    </div>
+    <div class="fbot">
+      <span>© <span id="yr">2026</span> Nishanth K R · youtube-music-float-dock</span>
+      <em>Son of a farmer · always a farmer.</em>
+    </div>
+  </div>
+</footer>
+</div>
+
+<script>
+document.getElementById('yr').textContent = new Date().getFullYear();
+const io = new IntersectionObserver((es) => {
+  es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.08, rootMargin: '0px 0px -40px' });
+document.querySelectorAll('.rv').forEach((el, i) => {
+  el.style.transitionDelay = (i % 4 * 70) + 'ms';
+  io.observe(el);
+});
+// screenshot mode: ?still=1 disables animation and reveals everything
+if (new URLSearchParams(location.search).has('still')) {
+  document.querySelectorAll('.rv').forEach(el => { el.style.transitionDelay = '0ms'; el.classList.add('in'); });
+  const s = document.createElement('style');
+  s.textContent = '*{animation:none!important;transition:none!important}';
+  document.head.appendChild(s);
+}
+</script>
+</body>
+</html>
