@@ -1,82 +1,119 @@
+<div align="center">
+
 # YouTube Music Float Dock
 
-Chrome **Manifest V3** extension for [music.youtube.com](https://music.youtube.com) only (regular YouTube is never touched).
+**A floating control dock for YouTube Music** — HQ playback, F11 / maximize / PiP, and random play from local listen history.
 
-Floating control dock, HQ playback, window modes (F11 / maximize / normal / minimize), Picture-in-Picture with controls, and **random play** from local listen history.
+Chrome MV3 · `music.youtube.com` only · **v1.23.4**
 
-**Version:** 1.22.0  
+[![Chrome](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions)
+[![YouTube Music](https://img.shields.io/badge/YouTube%20Music-only-FF0000?logo=youtubemusic&logoColor=white)](https://music.youtube.com)
+[![Privacy](https://img.shields.io/badge/privacy-local%20only-1f9d55)](PRIVACY.md)
+
+</div>
+
+<div align="center">
+  <img src="docs/screenshots/hero-ytm-float-dock.png" alt="YouTube Music Float Dock hero" width="100%" />
+</div>
 
 ---
 
-## Install from scratch
+## Why this exists
 
-### 1. Get the extension
+YouTube Music is great until you want a small always-there control strip, forced HQ, or PiP without fighting the page. **Float Dock** is a Chrome extension that only runs on `music.youtube.com` — regular YouTube is never touched — and keeps listen history **on your machine**.
+
+> Built by **Nishanth K R** — *son of a farmer, always a farmer.*
+
+---
+
+## What you can do
+
+- **Floating dock** — drag vertical position; F11 / maximize / normal / minimize.
+- **Picture-in-Picture** — play/pause and return-to-tab controls.
+- **Random play** — from **local** listen history (no server).
+- **Forced HQ playback** — reapplied on every track and SPA navigation.
+- **Popup controls** — HQ, dock visibility, auto-fullscreen, dock position, now-playing status.
+- **Local-only privacy** — see [`PRIVACY.md`](PRIVACY.md).
+
+---
+
+## Preview
+
+<div align="center">
+  <img src="docs/screenshots/feature-float-dock.png" alt="Floating dock concept" width="100%" />
+  <p><em>Floating dock beside the player — HQ, F11, PiP, random.</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/screenshots/feature-hq-popup.png" alt="HQ and popup status" width="100%" />
+  <p><em>Popup status — HQ on, dock visible, quality high.</em></p>
+</div>
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Extension | Chrome Manifest V3 |
+| Scripts | Content scripts (MAIN + isolated) · service worker · popup |
+| APIs | `chrome.storage` · tabs · windows |
+| Host | `https://music.youtube.com/*` only |
+
+---
+
+## Getting started
+
+### 1. Clone
+
 ```bash
 git clone https://github.com/Nishanth1409/youtube-music-float-dock.git
 cd youtube-music-float-dock
 ```
 
 ### 2. Load in Chrome
+
 1. Open `chrome://extensions`  
 2. Enable **Developer mode**  
-3. **Load unpacked** → select **this repo folder** (the one that contains `manifest.json`)  
+3. **Load unpacked** → select **this repo folder** (the one with `manifest.json`)  
 4. Open [https://music.youtube.com](https://music.youtube.com)  
-5. Click the extension icon → turn on **HQ playback** and **Show float dock** as you like  
+5. Click the extension icon → turn on **HQ playback** and **Show float dock**  
 
 ### 3. After code changes
+
 `chrome://extensions` → **Reload** on this extension → refresh the YouTube Music tab.
 
----
-
-## Features
-
-### Floating dock
-- Drag handle (vertical position, default ~15%)  
-- Display menu: Fullscreen (F11), Maximized, Normal, Minimize  
-- PiP with play/pause and back-to-tab  
-- Random from **local** listen history (no server)
-
-### Popup
-- HQ playback toggle  
-- Show float dock toggle  
-- Auto fullscreen on open  
-- Dock position slider  
-- Track / artist / quality status  
-
-### Playback
-- Does not hide video by default  
-- Re-applies quality on each track / SPA navigation  
-
----
-
-## Project layout
+### Layout
 
 ```text
 youtube-music-float-dock/
 ├── manifest.json
 ├── background.js
 ├── content.js
-├── extension-utils.js
 ├── listen-history.js
 ├── float-random.js
-├── pip-aspect-ratio.js
-├── page-guard.js
-├── player-fullscreen.js
 ├── popup/
 ├── styles/
 ├── icons/
-├── README.md
-└── PRIVACY.md
+├── PRIVACY.md
+└── README.md
 ```
 
----
+### Tips
 
-## Pro tips
-
-- Use a dedicated Chrome profile or PWA window for YouTube Music if you also use heavy extensions elsewhere.  
+- Use a dedicated Chrome profile or PWA window for YouTube Music if you also run heavy extensions elsewhere.  
 - Random play needs some listen history first — play a few tracks, then try Random.  
-- See **PRIVACY.md** for data handling (local-only history).
 
 ## License
 
-See `LICENSE`. Contact the author before commercial reuse.
+Personal / portfolio use. Review before redistributing.
+
+---
+
+<div align="center">
+
+Made with care by **Nishanth K R** — *son of a farmer, always a farmer.*
+
+[Portfolio](https://nkrportfolio.vercel.app) · [GitHub](https://github.com/Nishanth1409)
+
+</div>
