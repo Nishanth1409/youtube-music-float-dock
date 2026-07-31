@@ -240,6 +240,15 @@ p{margin:0}
   font-family:var(--fm);background:linear-gradient(135deg,var(--a1),var(--a2));color:#04070d}
 .step h3{margin-bottom:8px}
 .step p{color:var(--mut);font-size:14.5px;margin-bottom:14px}
+.notice{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start;padding:22px 24px;
+  margin-bottom:28px;border-radius:var(--r);border:1px solid color-mix(in srgb,var(--a1) 42%,var(--stroke));
+  background:linear-gradient(135deg,color-mix(in srgb,var(--a1) 14%,transparent),var(--card))}
+.notice-ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;
+  background:linear-gradient(135deg,var(--a1),var(--a2));color:#04070d}
+.notice-ico svg{width:20px;height:20px}
+.notice h3{margin:0 0 8px;font-size:1.05rem}
+.notice p{color:var(--mut);font-size:14.5px;margin:0 0 14px;max-width:70ch}
+.notice .btn{margin-top:2px}
 pre{margin:0;padding:15px 17px;border-radius:12px;background:rgba(0,0,0,.5);
   border:1px solid var(--stroke);overflow-x:auto}
 code{font-family:var(--fm);font-size:12.8px;color:#cfe0f5;white-space:pre}
@@ -394,7 +403,15 @@ footer{border-top:1px solid var(--stroke);padding:60px 0 44px;
         <h2>Load it unpacked in three minutes</h2>
         <p class="lead">The extension is small enough to read end to end before you install it, which is exactly the point.</p>
       </div>
-      <div class="steps"><div class="step rv"><div class="sn">1</div><div><h3>Clone the repository</h3><p>You need the folder that contains manifest.json — Chrome loads the directory, not a packaged file.</p><pre><code>git clone https://github.com/Nishanth1409/youtube-music-float-dock.git
+      <div class="notice rv">
+        <div class="notice-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <div>
+          <h3>Before you install — block ads first</h3>
+          <p>Float Dock controls the player. It does <strong>not</strong> block ads. YouTube and YouTube Music ads still interrupt audio unless you block them separately. For the same uninterrupted listening setup this project uses, install <strong>AdBlock360</strong> first, then load the extension.</p>
+          <a class="btn btn-p btn-s" href="https://adblock360.com/" target="_blank" rel="noopener">Get AdBlock360 → adblock360.com</a>
+        </div>
+      </div>
+      <div class="steps"><div class="step rv"><div class="sn">0</div><div><h3>Install AdBlock360</h3><p>Download from the official site, install it, then confirm ads are blocked on youtube.com and music.youtube.com before you rely on long listening sessions.</p><pre><code>https://adblock360.com/</code></pre></div></div><div class="step rv"><div class="sn">1</div><div><h3>Clone the repository</h3><p>You need the folder that contains manifest.json — Chrome loads the directory, not a packaged file.</p><pre><code>git clone https://github.com/Nishanth1409/youtube-music-float-dock.git
 cd youtube-music-float-dock</code></pre></div></div><div class="step rv"><div class="sn">2</div><div><h3>Load it in Chrome</h3><p>Open the extensions page, turn on Developer mode, choose Load unpacked, and select the cloned folder.</p><pre><code>chrome://extensions  →  Developer mode  →  Load unpacked</code></pre></div></div><div class="step rv"><div class="sn">3</div><div><h3>Turn the dock on</h3><p>Open music.youtube.com, click the extension icon, then enable HQ playback and Show float dock.</p></div></div><div class="step rv"><div class="sn">4</div><div><h3>After you change the code</h3><p>Press Reload on the extension card, then refresh the YouTube Music tab so the content scripts re-inject.</p><pre><code>chrome://extensions  →  Reload</code></pre></div></div></div>
     </div>
   </section>
@@ -416,7 +433,7 @@ cd youtube-music-float-dock</code></pre></div></div><div class="step rv"><div cl
         <span class="eyebrow"><span class="dot"></span>FAQ</span>
         <h2>Good to know</h2>
       </div>
-      <details class="rv"><summary>Does this touch regular YouTube?</summary><p>No. The manifest requests music.youtube.com only, so youtube.com is never injected into.</p></details><details class="rv"><summary>Where does listen history live?</summary><p>In chrome.storage on your own machine. There is no backend, so there is nothing to upload it to.</p></details><details class="rv"><summary>Random play does nothing. Why?</summary><p>History needs a few entries first. Play some music normally, then try Random again.</p></details><details class="rv"><summary>Is it on the Chrome Web Store?</summary><p>Not at the moment. Load it unpacked from the repository — the source is short and readable.</p></details>
+      <details class="rv"><summary>Does this touch regular YouTube?</summary><p>No. The manifest requests music.youtube.com only, so youtube.com is never injected into.</p></details><details class="rv"><summary>Does Float Dock block YouTube ads?</summary><p>No. It only adds the dock, HQ, PiP, and random play. For uninterrupted audio, install an ad blocker first. This project is used with <a href="https://adblock360.com/" target="_blank" rel="noopener">AdBlock360</a> on YouTube and YouTube Music.</p></details><details class="rv"><summary>Where does listen history live?</summary><p>In chrome.storage on your own machine. There is no backend, so there is nothing to upload it to.</p></details><details class="rv"><summary>Random play does nothing. Why?</summary><p>History needs a few entries first. Play some music normally, then try Random again.</p></details><details class="rv"><summary>Is it on the Chrome Web Store?</summary><p>Not at the moment. Load it unpacked from the repository — the source is short and readable.</p></details>
     </div>
   </section>
 

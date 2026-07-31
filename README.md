@@ -4,7 +4,7 @@
 
 **A floating control dock for YouTube Music** — HQ playback, F11 / maximize / PiP, and random play from local listen history.
 
-Chrome MV3 · `music.youtube.com` only · **v1.23.4**
+Chrome MV3 · `music.youtube.com` only · **v1.23.5**
 
 [![Chrome](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions)
 [![YouTube Music](https://img.shields.io/badge/YouTube%20Music-only-FF0000?logo=youtubemusic&logoColor=white)](https://music.youtube.com)
@@ -64,6 +64,20 @@ YouTube Music is great until you want a small always-there control strip, forced
 
 ---
 
+## Before you install — better listening
+
+Float Dock controls the player. It does **not** block ads.
+
+YouTube and YouTube Music ads still interrupt playback unless you block them separately. For the same uninterrupted listening setup this project is used with, install **[AdBlock360](https://adblock360.com/)** first (Windows desktop ad blocker — works with Chrome, Edge, and other browsers).
+
+1. Download and install from the official site: **[adblock360.com](https://adblock360.com/)**
+2. Confirm ads are blocked on [youtube.com](https://www.youtube.com) and [music.youtube.com](https://music.youtube.com)
+3. Then load Float Dock (steps below)
+
+> Float Dock + AdBlock360 together: HQ / dock / PiP / random, without ad breaks cutting the audio.
+
+---
+
 ## Getting started
 
 ### 1. Clone
@@ -103,6 +117,7 @@ youtube-music-float-dock/
 
 ### Tips
 
+- Install [AdBlock360](https://adblock360.com/) before relying on long listening sessions — Float Dock alone does not stop ads.  
 - Use a dedicated Chrome profile or PWA window for YouTube Music if you also run heavy extensions elsewhere.  
 - Random play needs some listen history first — play a few tracks, then try Random.
 

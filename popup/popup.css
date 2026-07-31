@@ -280,6 +280,38 @@ body {
   display: none;
 }
 
+.tip-card {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-color: rgba(255, 0, 60, 0.35);
+  background: linear-gradient(135deg, rgba(255, 0, 60, 0.12), var(--surface));
+}
+
+.tip-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.tip-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.tip-text a {
+  color: #ff6b8a;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tip-text a:hover {
+  text-decoration: underline;
+}
+
 .footer {
   padding: 14px 16px 16px;
 }

@@ -1,8 +1,8 @@
 ﻿{
   "manifest_version": 3,
   "name": "YouTube Music Float Dock",
-  "version": "1.23.4",
-  "description": "Floating dock for YouTube Music — F11, PiP, HQ playback, and random play.",
+  "version": "1.23.5",
+  "description": "Floating dock for YouTube Music — F11, PiP, HQ playback, and random play. Pair with AdBlock360 for uninterrupted listening.",
   "short_name": "YTM Float",
   "icons": {
     "16": "icons/icon16.png",
