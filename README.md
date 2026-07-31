@@ -102,7 +102,7 @@ youtube-music-float-dock/
 ### Tips
 
 - Use a dedicated Chrome profile or PWA window for YouTube Music if you also run heavy extensions elsewhere.  
-- Random play needs some listen history first — play a few tracks, then try Random.  
+- Random play needs some listen history first — play a few tracks, then try Random.
 
 ## License
 
@@ -110,10 +110,20 @@ Personal / portfolio use. Review before redistributing.
 
 ---
 
+## Live & credits
+
+| | |
+| :--- | :--- |
+| **Author** | [Nishanth K R](https://github.com/Nishanth1409) |
+| **Repo** | [Nishanth1409/youtube-music-float-dock](https://github.com/Nishanth1409/youtube-music-float-dock) |
+| **Portfolio** | [nkrportfolio.vercel.app](https://nkrportfolio.vercel.app) |
+
+---
+
 <div align="center">
 
-Made with care by **Nishanth K R** — *son of a farmer, always a farmer.*
+*Son of a farmer · always a farmer.*
 
-[Portfolio](https://nkrportfolio.vercel.app) · [GitHub](https://github.com/Nishanth1409)
+[GitHub](https://github.com/Nishanth1409) · [Portfolio](https://nkrportfolio.vercel.app)
 
 </div>
